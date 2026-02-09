@@ -1,4 +1,4 @@
-use pos_damai_rust::app::App;
+use sakaloka_universe_be::app::App;
 use loco_rs::testing::prelude::*;
 use serial_test::serial;
 

@@ -1,5 +1,5 @@
 use loco_rs::prelude::*;
-use sea_orm::{entity::prelude::*, QueryOrder, sea_query::OnConflict, Condition};
+use sea_orm::{sea_query::OnConflict, Condition};
 use serde_json::json;
 use chrono::{NaiveDateTime, Utc};
 use crate::controllers::sync_dtos::PushPayloadDto;
@@ -7,8 +7,8 @@ use std::collections::HashMap;
 
 use crate::models::_entities::{
     brands, categories, customers, discounts, finances, inventory_transactions,
-    organizations, payable_realizations, payables, payment_methods, product_prices, 
-    product_variants, products, purchase_return_items, purchase_returns, purchases, 
+    payable_realizations, payables, payment_methods, product_prices, 
+    products, purchase_return_items, purchase_returns, purchases, 
     receivable_realizations, receivables, stock_opnames, stock_opname_items,
     suppliers, transaction_items, transactions, shifts, cash_drawers,
     sea_orm_active_enums::*,
@@ -191,7 +191,7 @@ impl Sync {
     pub async fn push(
         db: &DatabaseConnection,
         org_id: &str,
-        user_id: &str,
+        _user_id: &str,
         payload: PushPayloadDto,
     ) -> Result<serde_json::Value> {
         let mut results = HashMap::new();

@@ -1,6 +1,6 @@
 #[allow(unused_imports)]
 use loco_rs::{cli::playground, prelude::*};
-use pos_damai_rust::app::App;
+use sakaloka_universe_be::app::App;
 
 #[tokio::main]
 async fn main() -> loco_rs::Result<()> {

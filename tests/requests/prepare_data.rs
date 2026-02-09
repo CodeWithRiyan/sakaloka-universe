@@ -1,12 +1,11 @@
 use axum::http::{HeaderName, HeaderValue};
 use loco_rs::{app::AppContext, TestServer};
-use pos_damai_rust::{models::users, views::auth::LoginResponse};
+use sakaloka_universe_be::{models::users, views::auth::LoginResponse};
 
 const USER_EMAIL: &str = "test@loco.com";
 const USER_PASSWORD: &str = "1234";
 
 pub struct LoggedInUser {
-    pub user: users::Model,
     pub token: String,
 }
 
@@ -22,15 +21,10 @@ pub async fn init_user_login(request: &TestServer, ctx: &AppContext) -> LoggedIn
         .post("/api/auth/register")
         .json(&register_payload)
         .await;
-    let user = users::Model::find_by_email(&ctx.db, USER_EMAIL)
+    
+    let _user: users::Model = users::Model::find_by_email(&ctx.db, USER_EMAIL)
         .await
         .unwrap();
-
-    let verify_payload = serde_json::json!({
-        "token": user.email_verification_token,
-    });
-
-    request.post("/api/auth/verify").json(&verify_payload).await;
 
     let response = request
         .post("/api/auth/login")
@@ -43,9 +37,6 @@ pub async fn init_user_login(request: &TestServer, ctx: &AppContext) -> LoggedIn
     let login_response: LoginResponse = serde_json::from_str(&response.text()).unwrap();
 
     LoggedInUser {
-        user: users::Model::find_by_email(&ctx.db, USER_EMAIL)
-            .await
-            .unwrap(),
         token: login_response.token,
     }
 }

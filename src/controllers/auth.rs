@@ -6,7 +6,6 @@ use crate::{
     views::auth::{CurrentResponse, LoginResponse},
 };
 use loco_rs::prelude::*;
-use serde::{Deserialize, Serialize};
 
 #[debug_handler]
 async fn register(
@@ -15,7 +14,7 @@ async fn register(
 ) -> Result<Response> {
     let res = users::Model::create_with_password(&ctx.db, &params).await;
 
-    let user = match res {
+    let _user = match res {
         Ok(user) => user,
         Err(err) => {
             tracing::info!(

@@ -2798,32 +2798,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c33a9471896f1c69cecef8d20cbe2f7accd12527ce60845ff44c153bb2a21b49"
 
 [[package]]
-name = "pos-damai-rust"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "axum",
- "chrono",
- "dotenvy",
- "include_dir",
- "insta",
- "loco-rs",
- "migration",
- "regex",
- "rstest",
- "sea-orm",
- "serde",
- "serde_json",
- "serial_test",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "utoipa",
- "uuid",
- "validator",
-]
-
-[[package]]
 name = "potential_utf"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3381,6 +3355,32 @@ name = "ryu"
 version = "1.0.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a50f4cf475b65d88e057964e0e9bb1f0aa9bbb2036dc65c64596b42932536984"
+
+[[package]]
+name = "sakaloka-universe-be"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "chrono",
+ "dotenvy",
+ "include_dir",
+ "insta",
+ "loco-rs",
+ "migration",
+ "regex",
+ "rstest",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "utoipa",
+ "uuid",
+ "validator",
+]
 
 [[package]]
 name = "same-file"
