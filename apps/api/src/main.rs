@@ -3,9 +3,15 @@
 // Entry point — anyhow is allowed only here (binary crate).
 // libs/ use thiserror. Never use .unwrap() or .expect() outside tests.
 // ============================================================
+#![doc = "🌍 **Earth** — Sakaloka-Universe REST API server (Axum).
+
+Handles all HTTP traffic for the Sakaloka platform.
+Authentication is enforced by `sakaloka-secure` IAM middleware.
+Database access is mediated by the `sakaloka-data` client layer."]
 #![deny(clippy::all)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
+#![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
 mod health;

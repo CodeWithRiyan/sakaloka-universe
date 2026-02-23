@@ -1,7 +1,7 @@
 //! Scope enforcement guard for Axum routes.
 //!
 //! `RequireScope` is an Axum middleware layer that extracts validated
-//! [`UserClaims`] from the request extensions and rejects requests missing
+//! `UserClaims` from the request extensions and rejects requests missing
 //! the required scope with a `403 Forbidden` response.
 //!
 //! Usage: applied at the **router level**, never inside handler bodies.

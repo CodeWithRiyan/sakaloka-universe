@@ -1,6 +1,6 @@
 //! Service JWT claims — for planet-to-planet communication.
 //!
-//! Service tokens are auto-managed by [`crate::tokens::ServiceTokenStore`].
+//! Service tokens are auto-managed by [`crate::tokens::store::ServiceTokenStore`].
 //! Each token carries an `aud` claim targeting the specific destination planet.
 //! A Jupiter token is rejected by Saturn even if the signature is valid.
 

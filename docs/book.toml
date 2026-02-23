@@ -1,0 +1,12 @@
+[book]
+title = "Sakaloka-Universe — Architecture & Developer Docs"
+authors = ["PT Riyan Solusi Teknologi"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+
+[output.html]
+git-repository-url = "https://github.com/riyan-id/sakaloka-universe"
+edit-url-template = "https://github.com/riyan-id/sakaloka-universe/edit/main/docs/{path}"
