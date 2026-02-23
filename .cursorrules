@@ -1,0 +1,435 @@
+# ============================================================
+# SAKALOKA-UNIVERSE — Cursor AI Rules
+# Owner: PT Riyan Solusi Teknologi
+# PRD Version: 1.3 | Stack: Rust · Loco.rs · SurrealDB ·
+#              Qdrant · Zenoh · Burn · React · Tauri 2.0
+# ============================================================
+
+## PROJECT OVERVIEW
+
+You are working on Sakaloka-Universe, a Rust-first enterprise
+platform. The codebase is a Cargo workspace with strict compile-time
+quality enforcement ("Iron Curtain"). Every suggestion you make must
+pass the Iron Curtain or it will be rejected by CI.
+
+The system is composed of named "planets":
+- 🌍 Earth   — Loco.rs API server         (port 3000 → external 53000)
+- 🪐 Jupiter — SurrealDB graph/doc DB     (port 8000 → external 58000)
+- 🪐 Saturn  — Eclipse Zenoh message bus  (port 7447 → external 57447)
+- 🔵 Uranus  — Qdrant vector search       (port 6333 → external 56333)
+- 🔮 Neptune — Burn AI inference engine   (no HTTP, Zenoh only)
+- 🌸 Venus   — React + Tauri 2.0 frontend (only external user surface)
+
+All IAM logic lives exclusively in `libs/secure`. No planet
+implements its own auth logic.
+
+---
+
+## WORKSPACE STRUCTURE
+
+```
+sakaloka-universe/
+├── Cargo.toml          # workspace root — do NOT add [dependencies] here
+├── apps/
+│   ├── api/            # 🌍 Earth — Loco.rs API
+│   └── web/            # 🌸 Venus — React + Vite + Tauri 2.0
+├── libs/
+│   ├── core/           # shared domain types, traits, constants
+│   ├── data/           # SurrealDB + Qdrant + Zenoh clients
+│   ├── secure/         # ALL IAM: Argon2, JWT, RBAC, tokens, keys
+│   └── ai/             # Burn model loading + embed()
+└── docs/               # MdBook + ADRs in /docs/adr/
+```
+
+When adding a new file, always place it in the correct crate.
+Never add business logic to `apps/` — it belongs in `libs/`.
+
+---
+
+## THE IRON CURTAIN — NON-NEGOTIABLE RULES
+
+These rules are enforced by the Rust compiler. Violating them
+breaks the build. Never suggest code that bypasses them.
+
+### Every `lib.rs` and `main.rs` MUST begin with:
+
+```rust
+#![deny(clippy::all)]
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::expect_used)]
+#![deny(missing_docs)]
+#![forbid(unsafe_code)]
+```
+
+### The No-Panic Policy — absolute rules:
+
+- NEVER use `.unwrap()` — use `?` or `match` instead
+- NEVER use `.expect()` — propagate errors with `?`
+- NEVER use `panic!()`, `unreachable!()`, or `todo!()` in non-test code
+- NEVER use `unsafe { }` blocks — zero exceptions
+- ALL `Result` and `Option` must be explicitly handled
+- Use `thiserror` for custom error types in `libs/`
+- Use `anyhow` only in binary entry points (`apps/api/src/main.rs`)
+
+### Error handling pattern — always prefer this:
+
+```rust
+// ✅ CORRECT
+pub fn parse_email(raw: &str) -> Result<EmailAddress, SecureError> {
+    EmailAddress::new(raw).map_err(SecureError::InvalidEmail)
+}
+
+// ❌ WRONG — never do this
+pub fn parse_email(raw: &str) -> EmailAddress {
+    EmailAddress::new(raw).unwrap()
+}
+```
+
+---
+
+## DOCUMENTATION REQUIREMENTS (Luna Protocol)
+
+Every public item in `libs/` MUST have a doc comment. This is
+enforced by `#![deny(missing_docs)]`. If you write a new public
+function, struct, enum, or trait without a doc comment, the build
+will fail.
+
+### Required doc comment format:
+
+```rust
+/// One-line summary of what this does.
+///
+/// Extended description if the logic is non-trivial.
+/// Explain why, not just what.
+///
+/// # Errors
+///
+/// Returns [`ErrorType::Variant`] when <condition>.
+///
+/// # Examples
+///
+/// ```rust
+/// let result = my_function("input")?;
+/// assert_eq!(result, expected);
+/// ```
+pub fn my_function(input: &str) -> Result<Output, MyError> {
+    // ...
+}
+```
+
+Rules:
+- Every `/// # Examples` block must be a valid, compilable snippet
+- `cargo test` runs all doc-tests — broken examples break CI
+- If an example needs an external service, gate it with `#[cfg(test)]`
+- Private functions do not require doc comments but benefit from them
+
+---
+
+## IAM — IDENTITY & ACCESS MANAGEMENT
+
+All authentication and authorization flows through `libs/secure`.
+Never implement token logic, password hashing, or permission checks
+anywhere else.
+
+### Two token types — both HS256, signed with `SAKALOKA_JWT_SECRET`:
+
+**User JWT** (issued by Earth, held by Venus):
+- TTL: 15 minutes
+- Claims: `sub`, `iss`, `aud`, `exp`, `iat`, `jti`, `role`, `scopes`, `session_id`
+- `aud` is always `["sakaloka:earth"]`
+
+**Service JWT** (planet-to-planet, managed by `ServiceTokenStore`):
+- TTL: 5 minutes, auto-refreshed 60s before expiry
+- Claims: `sub`, `iss`, `aud`, `exp`, `iat`, `jti`, `service_scopes`, `planet`
+- `aud` MUST match the target planet — e.g. `["sakaloka:jupiter"]`
+- A Jupiter token is REJECTED by Saturn even with a valid signature
+
+### Key IAM rules:
+
+- `libs/secure` is the ONLY place that calls `jsonwebtoken::encode/decode`
+- `libs/secure` is the ONLY place that calls `argon2::hash_encoded/verify`
+- Earth is the ONLY planet with user-facing auth endpoints
+- Venus holds ONLY User JWTs — never service tokens
+- Access token: stored in React state (memory only — NEVER localStorage)
+- Refresh token: stored in Tauri OS keychain via `tauri-plugin-store`
+- Neptune has NO HTTP port — it communicates exclusively via Zenoh
+
+### RBAC scopes — enforce at Earth routes using `RequireScope`:
+
+```rust
+// ✅ CORRECT — protect routes at the framework level
+router.route("/entity", post(create).layer(RequireScope::new(Scope::EntityWrite)));
+
+// ❌ WRONG — never do scope checks inside the handler body
+async fn create(claims: UserClaims, ...) {
+    if claims.role != Role::Admin { return Err(...) } // too late, wrong layer
+}
+```
+
+Scope reference:
+- `entity:read`    — admin, editor, viewer, service
+- `entity:write`   — admin, editor, service
+- `entity:delete`  — admin only
+- `search:read`    — admin, editor, viewer, service
+- `user:manage`    — admin only
+- `db:read/write`  — admin, service
+- `db:admin`       — admin only
+- `zenoh:publish/subscribe` — admin, service
+
+---
+
+## NEWTYPE PATTERN — INPUT VALIDATION
+
+Never pass raw `String` or `&str` into business logic or database
+queries. All external inputs must be wrapped in validated newtypes
+defined in `libs/secure::newtypes` or `libs/core`.
+
+```rust
+// ✅ CORRECT
+pub struct EmailAddress(String);
+
+impl EmailAddress {
+    /// Parses and validates an email address string.
+    ///
+    /// # Errors
+    /// Returns [`SecureError::InvalidEmail`] if the string is not a
+    /// valid email format.
+    pub fn new(raw: &str) -> Result<Self, SecureError> {
+        validate_email_format(raw)?;
+        Ok(Self(raw.to_lowercase()))
+    }
+}
+
+// ❌ WRONG — raw string reaches DB query
+async fn create_user(email: String, db: &Surreal<Client>) { ... }
+
+// ✅ CORRECT — validated type reaches DB query
+async fn create_user(email: EmailAddress, db: &Surreal<Client>) { ... }
+```
+
+Existing newtypes (do not re-create these):
+`UserId`, `TokenId`, `SessionId`, `Planet`, `ServiceName`,
+`EmailAddress`, `Username`, `Password`, `PlanetName`
+
+---
+
+## SURREALDB — JUPITER
+
+- All schema is defined in `.surql` files — never create tables ad hoc
+- Tables use `SCHEMAFULL` — any undefined field causes a DB error
+- Always authenticate using a service JWT via `DEFINE TOKEN` — never
+  use the root SurrealDB password in application code
+- The `jti_blocklist` table is checked on EVERY authenticated request
+- Migrations must be idempotent — safe to run multiple times
+
+```rust
+// ✅ CORRECT — use the authenticated client from libs/data
+let db = connect_authenticated(&config, &token_store).await?;
+let user: Option<User> = db.select(("user", id)).await?;
+
+// ❌ WRONG — never embed raw SurrealDB credentials
+let db = Surreal::new::<Ws>("ws://localhost:8000").await?;
+db.signin(Root { username: "root", password: "root" }).await?;
+```
+
+---
+
+## ZENOH — SATURN
+
+Topic naming convention — always follow this pattern:
+```
+sakaloka/{source_planet}/{entity}/{event_type}
+
+Examples:
+  sakaloka/earth/user/created
+  sakaloka/jupiter/record/updated
+  sakaloka/neptune/embedding/ready
+```
+
+Planet publish/subscribe ACL (enforced at connection time):
+- Earth    → publishes: `sakaloka/earth/**`   | subscribes: `sakaloka/jupiter/**`, `sakaloka/uranus/**`
+- Jupiter  → publishes: `sakaloka/jupiter/**` | subscribes: `sakaloka/earth/**`
+- Uranus   → publishes: `sakaloka/uranus/**`  | subscribes: `sakaloka/jupiter/**`
+- Neptune  → publishes: `sakaloka/neptune/**` | subscribes: `sakaloka/earth/**`, `sakaloka/jupiter/**`
+- Venus    → NO direct Zenoh access — receives events via Earth SSE/WebSocket only
+
+All event handlers must be **idempotent** — the same event delivered
+twice must produce the same result. Use sequence numbers in payloads
+to detect duplicates.
+
+---
+
+## QDRANT — URANUS
+
+Never use the master Qdrant API key in application code. Always
+request a scoped key from `ApiKeyVault`:
+
+```rust
+// ✅ CORRECT
+let client = qdrant_client(&config, &key_vault, QdrantScope::ReadWrite)?;
+
+// ❌ WRONG
+let client = QdrantClient::from_url("http://localhost:6333")
+    .with_api_key(std::env::var("QDRANT_MASTER_KEY").unwrap()) // two violations
+    .build()?;
+```
+
+Scopes:
+- `QdrantScope::ReadWrite` — Earth (API searches + Neptune upserts via Earth)
+- `QdrantScope::WriteOnly` — Neptune (embedding upserts only, cannot search)
+- `QdrantScope::ReadOnly`  — any internal read-only consumer
+
+---
+
+## BURN AI — NEPTUNE
+
+- Neptune has NO HTTP server — never add one
+- Neptune communicates ONLY via Zenoh (subscribes + publishes)
+- The `embed()` function signature must return `Result<Vec<f32>, AiError>`
+- Model is loaded from a local file path — never download at runtime
+- Embedding pipeline: Jupiter record saved → Zenoh event → Neptune embeds
+  → Zenoh event → Uranus upserts vector
+
+```rust
+/// Generates a fixed-dimension embedding vector for the given text.
+///
+/// # Errors
+/// Returns [`AiError::ModelNotLoaded`] if the model file is missing.
+/// Returns [`AiError::InferenceFailed`] if the forward pass fails.
+pub fn embed(text: &str, model: &EmbeddingModel) -> Result<Vec<f32>, AiError> {
+    // ...
+}
+```
+
+---
+
+## VENUS — REACT + TAURI 2.0
+
+### Token storage — absolute rules:
+
+```typescript
+// ✅ CORRECT — access token lives only in React state
+const [accessToken, setAccessToken] = useState<string | null>(null);
+
+// ✅ CORRECT — refresh token in Tauri OS keychain
+await invoke("store_refresh_token", { token: refreshToken });
+
+// ❌ WRONG — NEVER store JWT in localStorage or sessionStorage
+localStorage.setItem("access_token", token);     // absolute violation
+sessionStorage.setItem("refresh_token", token);  // absolute violation
+```
+
+### Tauri Commands — always return `Result`:
+
+```rust
+// ✅ CORRECT
+#[tauri::command]
+pub async fn login(
+    username: String,
+    password: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<AccessToken, String> {
+    let creds = Credentials::new(username, password)
+        .map_err(|e| e.to_string())?;
+    state.auth_client.login(creds).await
+        .map_err(|e| e.to_string())
+}
+
+// ❌ WRONG — panics if login fails
+#[tauri::command]
+pub async fn login(username: String, password: String) -> AccessToken {
+    auth_client.login(username, password).await.unwrap()
+}
+```
+
+### Frontend API calls — always handle the Err variant:
+
+```typescript
+// ✅ CORRECT
+try {
+  const data = await invoke<EntityResponse>("get_entity", { id });
+  setEntity(data);
+} catch (err) {
+  toast.error(`Failed to load entity: ${err}`);
+}
+```
+
+---
+
+## PORTS — NEVER CHANGE THESE
+
+External ports use the `5xxxx` prefix to avoid conflicts with
+Residence, POS Damai, and Odoo running on the same server.
+
+| Planet | Internal Port | External Binding |
+|---|---|---|
+| Earth (API) | 3000 | 127.0.0.1:53000 |
+| Jupiter (SurrealDB) | 8000 | 127.0.0.1:58000 |
+| Saturn (Zenoh) | 7447 | 127.0.0.1:57447 |
+| Uranus (Qdrant) | 6333 | 127.0.0.1:56333 |
+| Uptime Kuma | 3001 | 127.0.0.1:3001 (existing) |
+
+Never bind any service to `0.0.0.0` — always `127.0.0.1`.
+Never use a port outside the `5xxxx` range for new Sakaloka services.
+
+---
+
+## PERFORMANCE TARGETS
+
+- API → SurrealDB round-trip: p99 < 10ms (measured with `criterion`)
+- Zenoh message delivery: < 5ms broker latency
+- Embedding sync (Jupiter record → Qdrant upsert): < 500ms end-to-end
+- Semantic search response: < 200ms
+- All benchmarks live in `benches/` and run via `cargo bench`
+
+---
+
+## WHAT TO DO WHEN ASKED TO GENERATE CODE
+
+1. Check which planet/crate the code belongs to
+2. Apply Iron Curtain directives at the top of any new `lib.rs`/`main.rs`
+3. Write full doc comments with `# Errors` and `# Examples` for every public item
+4. Use newtypes — never raw `String` in function signatures for user input
+5. Use `?` for error propagation — never `.unwrap()` or `.expect()`
+6. For IAM code, place it in `libs/secure` — nowhere else
+7. For DB access, use the authenticated client from `libs/data`
+8. For Tauri Commands, always return `Result<T, String>`
+9. Verify the port is correct if adding Docker config
+10. Write a doc-test that actually compiles and demonstrates usage
+
+---
+
+## WHAT TO NEVER DO
+
+- `unsafe { }` — zero tolerance, zero exceptions
+- `.unwrap()` or `.expect()` outside of `#[test]` blocks
+- `panic!()`, `unreachable!()`, `todo!()` in production paths
+- Raw strings as function parameters for user-facing inputs
+- Auth logic outside `libs/secure`
+- `localStorage` or `sessionStorage` for any token
+- Hardcoded secrets, passwords, or API keys in source code
+- Binding services to `0.0.0.0`
+- Adding new ports outside the `5xxxx` scheme
+- HTTP listeners on Neptune (Burn AI)
+- Direct Zenoh access from Venus
+- Creating tables in SurrealDB without a `.surql` schema file
+- Non-idempotent Zenoh event handlers
+
+---
+
+## QUICK REFERENCE — CRATE DECISION TREE
+
+```
+Is it a domain type or shared trait?         → libs/core
+Is it a DB/Zenoh/Qdrant client or query?     → libs/data
+Is it auth, tokens, RBAC, or hashing?        → libs/secure
+Is it an AI model or embedding logic?        → libs/ai
+Is it an HTTP route or API handler?          → apps/api
+Is it a UI component or Tauri command?       → apps/web
+Is it an architecture decision?              → docs/adr/
+```
+
+---
+
+# PT Riyan Solusi Teknologi
+# Infrastructure: Ready | Security: Hardened | Code: Strict

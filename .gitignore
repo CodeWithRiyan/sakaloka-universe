@@ -1,0 +1,34 @@
+# Rust build artifacts
+/target/
+
+# Environment secrets — NEVER commit
+.env
+.env.local
+.env.*.local
+
+# Cargo lock (keep for binaries, exclude for libs if desired)
+# Cargo.lock
+
+# macOS
+.DS_Store
+.__MACOSX
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# MdBook output
+/docs/book/
+
+# Model files (binary, usually large)
+*.bin
+*.onnx
+*.pt
+
+# Logs
+*.log
+
+# Temporary files
+*.swp
+*.bak

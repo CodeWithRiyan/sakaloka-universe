@@ -1,0 +1,130 @@
+# =============================================================
+# 🌌 Sakaloka-Universe — Docker Compose (Development)
+# PRD v1.4 — Section 2.2
+#
+# Port scheme: 5xxxx external → standard internal
+# ALL bindings use 127.0.0.1 — NEVER 0.0.0.0
+# =============================================================
+
+services:
+
+  # ─────────────────────────────────────────────────────────────
+  # 🌍 Earth — Loco.rs API (apps/api)
+  # External: 127.0.0.1:53000 → 3000
+  # ─────────────────────────────────────────────────────────────
+  sakaloka-api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "127.0.0.1:53000:3000"
+    environment:
+      - RUST_LOG=info
+      - SAKALOKA_JWT_SECRET=${SAKALOKA_JWT_SECRET}
+      - SURREALDB_URL=ws://surrealdb:8000
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_MASTER_KEY=${QDRANT_MASTER_KEY}
+      - ZENOH_CONNECT=tcp/zenoh:7447
+    depends_on:
+      surrealdb:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      zenoh:
+        condition: service_healthy
+    healthcheck:
+      # Earth's Dockerfile is debian-based and has curl installed
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - sakaloka-net
+
+  # ─────────────────────────────────────────────────────────────
+  # 🪐 Jupiter — SurrealDB (graph + document DB)
+  # External: 127.0.0.1:58000 → 8000
+  # Note: surrealdb:latest is a distroless image (no shell/curl).
+  #       Use the surreal CLI that IS present in the image.
+  # ─────────────────────────────────────────────────────────────
+  surrealdb:
+    image: surrealdb/surrealdb:latest
+    command: start --log info --user ${SURREALDB_USER:-root} --pass ${SURREALDB_PASS:-sakaloka-dev} memory
+    ports:
+      - "127.0.0.1:58000:8000"
+    healthcheck:
+      # is-ready default endpoint is ws://localhost:8000 — no flags needed
+      test: ["CMD", "/surreal", "is-ready", "--log", "none"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - sakaloka-net
+
+  # ─────────────────────────────────────────────────────────────
+  # 🪐 Saturn — Eclipse Zenoh (pub/sub messaging bus)
+  # External: 127.0.0.1:57447 → 7447
+  # Note: zenoh image is distroless — use a simple TCP probe via
+  #       the fact that the port being open means it's ready.
+  # ─────────────────────────────────────────────────────────────
+  zenoh:
+    image: eclipse/zenoh:1.0.0
+    ports:
+      - "127.0.0.1:57447:7447"
+    command: ["--no-multicast-scouting"]
+    healthcheck:
+      # zenoh binary is at / — use it to print version as liveness probe
+      test: ["CMD", "/zenohd", "--version"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - sakaloka-net
+
+  # ─────────────────────────────────────────────────────────────
+  # 🔵 Uranus — Qdrant (vector search engine)
+  # External: 127.0.0.1:56333 → 6333
+  # Note: qdrant image ships with /bin/sh and a qdrant binary.
+  # ─────────────────────────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "127.0.0.1:56333:6333"
+    environment:
+      - QDRANT__SERVICE__API_KEY=${QDRANT_MASTER_KEY:-sakaloka-dev-key}
+    volumes:
+      - qdrant-data:/qdrant/storage
+    healthcheck:
+      # qdrant ships a /bin/sh and wget in its debian-slim base
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/6333 && echo -e 'GET /readyz HTTP/1.0\r\n\r\n' >&3 && cat <&3 | grep -q '200'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - sakaloka-net
+
+  # ─────────────────────────────────────────────────────────────
+  # 🔮 Neptune — Burn AI (no HTTP, Zenoh only)
+  # No ports exposed — communicates ONLY via Saturn (Zenoh).
+  # (Neptune scaffolded in Sprint 7)
+  # ─────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────
+# Volumes & Networks
+# ─────────────────────────────────────────────────────────────
+volumes:
+  qdrant-data:
+    driver: local
+
+networks:
+  sakaloka-net:
+    driver: bridge
+    # Internal network — no external routing

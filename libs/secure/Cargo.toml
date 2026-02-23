@@ -1,0 +1,18 @@
+[package]
+name = "sakaloka-secure"
+version = "0.1.0"
+edition = "2021"
+description = "Sakaloka-Universe — ALL IAM: Argon2, JWT, RBAC, tokens, keys"
+license = "MIT"
+
+[dependencies]
+sakaloka-core = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
+thiserror     = { workspace = true }
+argon2        = { workspace = true }
+rand_core     = { workspace = true }
+jsonwebtoken  = { workspace = true }
+uuid          = { workspace = true }
+time          = { workspace = true }
+tracing       = { workspace = true }

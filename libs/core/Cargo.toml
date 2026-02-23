@@ -1,0 +1,12 @@
+[package]
+name = "sakaloka-core"
+version = "0.1.0"
+edition = "2021"
+description = "Sakaloka-Universe — shared domain types, traits, and constants"
+license = "MIT"
+
+[dependencies]
+serde      = { workspace = true }
+thiserror  = { workspace = true }
+uuid       = { workspace = true }
+time       = { workspace = true }
