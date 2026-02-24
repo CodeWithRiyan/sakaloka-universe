@@ -1,5 +1,8 @@
 -- SCHEMAFULL table for secure refresh token rotation
-DEFINE TABLE refresh_token SCHEMAFULL;
+DEFINE TABLE refresh_token SCHEMAFULL
+    PERMISSIONS
+        FOR select WHERE 'sakaloka:jupiter' IN $token.aud AND 'db:read' IN $token.service_scopes
+        FOR create, update, delete WHERE 'sakaloka:jupiter' IN $token.aud AND 'db:write' IN $token.service_scopes;
 
 -- Link to the parent session
 DEFINE FIELD session_id ON refresh_token TYPE record<session>;

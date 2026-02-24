@@ -1,5 +1,8 @@
 -- SCHEMAFULL table for Sakaloka users
-DEFINE TABLE user SCHEMAFULL;
+DEFINE TABLE user SCHEMAFULL
+    PERMISSIONS
+        FOR select WHERE 'sakaloka:jupiter' IN $token.aud AND 'db:read' IN $token.service_scopes
+        FOR create, update, delete WHERE 'sakaloka:jupiter' IN $token.aud AND 'db:write' IN $token.service_scopes;
 
 -- Username must be between 3 and 128 chars
 DEFINE FIELD username ON user TYPE string ASSERT string::len($value) >= 3 AND string::len($value) <= 128;

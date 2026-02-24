@@ -40,7 +40,7 @@ pub struct ServiceClaims {
 ///
 /// # Examples
 ///
-/// ```rust,no_run
+/// ```rust
 /// use sakaloka_secure::jwt::{JwtKeys, service_claims::issue_service_token};
 /// use sakaloka_secure::newtypes::Planet;
 ///
@@ -83,7 +83,7 @@ pub fn issue_service_token(
 ///
 /// # Examples
 ///
-/// ```rust,no_run
+/// ```rust
 /// use sakaloka_secure::jwt::{JwtKeys, service_claims::{issue_service_token, validate_service_token}};
 /// use sakaloka_secure::newtypes::Planet;
 ///

@@ -103,6 +103,16 @@ impl SessionId {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
     }
+
+    /// Creates a [`SessionId`] from a raw string (e.g. from SurrealDB record ID).
+    pub fn new_with_raw(raw: &str) -> Self {
+        Self(Uuid::parse_str(raw.trim_start_matches("session:")).unwrap_or_else(|_| Uuid::new_v4()))
+    }
+
+    /// Returns the raw session ID string.
+    pub fn as_str(&self) -> String {
+        format!("session:{}", self.0)
+    }
 }
 
 impl Default for SessionId {

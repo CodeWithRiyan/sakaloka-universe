@@ -41,7 +41,7 @@ pub struct UserClaims {
 ///
 /// # Examples
 ///
-/// ```rust,no_run
+/// ```rust
 /// use sakaloka_secure::jwt::{JwtKeys, user_claims::issue_user_token};
 /// use sakaloka_secure::newtypes::{UserId, SessionId};
 ///
@@ -84,7 +84,7 @@ pub fn issue_user_token(
 ///
 /// # Examples
 ///
-/// ```rust,no_run
+/// ```rust
 /// use sakaloka_secure::jwt::{JwtKeys, user_claims::{issue_user_token, validate_user_token}};
 /// use sakaloka_secure::newtypes::{UserId, SessionId};
 ///

@@ -20,5 +20,6 @@
 //!   in the future for Mercury (RTIC firmware) via feature flags.
 
 pub mod constants;
+pub mod models;
 pub mod traits;
 pub mod types;

@@ -10,3 +10,4 @@ serde      = { workspace = true }
 thiserror  = { workspace = true }
 uuid       = { workspace = true }
 time       = { workspace = true }
+surrealdb  = { workspace = true }

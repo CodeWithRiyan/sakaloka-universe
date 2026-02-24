@@ -6609,6 +6609,7 @@ dependencies = [
  "sakaloka-secure",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "tower 0.5.3",
  "tower-http",
@@ -6621,6 +6622,7 @@ name = "sakaloka-core"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "surrealdb",
  "thiserror 2.0.18",
  "time",
  "uuid",
@@ -6630,6 +6632,7 @@ dependencies = [
 name = "sakaloka-data"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "qdrant-client",
  "sakaloka-core",
  "sakaloka-secure",
@@ -6647,13 +6650,16 @@ name = "sakaloka-secure"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "axum 0.8.8",
  "jsonwebtoken",
  "rand_core 0.6.4",
  "sakaloka-core",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror 2.0.18",
  "time",
+ "tower 0.5.3",
  "tracing",
  "uuid",
 ]

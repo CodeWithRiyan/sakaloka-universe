@@ -22,7 +22,7 @@ use argon2::{
 ///
 /// # Examples
 ///
-/// ```rust,no_run
+/// ```rust
 /// use sakaloka_secure::{argon2::hash_password, newtypes::Password};
 ///
 /// let pw = Password::new("correct-horse-battery-staple").unwrap();
@@ -49,7 +49,7 @@ pub fn hash_password(password: &Password) -> Result<String, SecureError> {
 ///
 /// # Examples
 ///
-/// ```rust,no_run
+/// ```rust
 /// use sakaloka_secure::{argon2::{hash_password, verify_password}, newtypes::Password};
 ///
 /// let pw = Password::new("correct-horse-battery-staple").unwrap();
@@ -74,10 +74,10 @@ mod tests {
     fn test_hash_and_verify_roundtrip() {
         let pw = Password::new("secure-sakaloka-password").unwrap();
         let hash = hash_password(&pw).unwrap();
-        
+
         // Assert it starts with the correct PHC prefix
         assert!(hash.starts_with("$argon2id$"));
-        
+
         // Assert it verifies correctly
         let ok = verify_password(&pw, &hash).unwrap();
         assert!(ok);
@@ -87,9 +87,9 @@ mod tests {
     fn test_verify_rejects_wrong_password() {
         let pw = Password::new("correct-password").unwrap();
         let wrong_pw = Password::new("wrong-password").unwrap();
-        
+
         let hash = hash_password(&pw).unwrap();
-        
+
         let ok = verify_password(&wrong_pw, &hash).unwrap();
         assert!(!ok);
     }

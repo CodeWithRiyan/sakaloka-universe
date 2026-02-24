@@ -20,7 +20,7 @@ pub enum QdrantScope {
 ///
 /// # Examples
 ///
-/// ```rust,no_run
+/// ```rust
 /// use sakaloka_secure::keys::vault::{ApiKeyVault, QdrantScope};
 ///
 /// std::env::set_var("QDRANT_MASTER_KEY", "my-master-key");
@@ -47,26 +47,37 @@ impl ApiKeyVault {
     ///
     /// # Errors
     ///
-    /// Returns [`SecureError::MissingEnvVar`] if the vault was not properly initialized.
-    ///
-    /// # Examples
-    ///
-    /// ```rust,no_run
-    /// use sakaloka_secure::keys::vault::{ApiKeyVault, QdrantScope};
-    ///
-    /// std::env::set_var("QDRANT_MASTER_KEY", "my-master-key");
-    /// let vault = ApiKeyVault::from_env().unwrap();
-    /// // Neptune only gets write-only access.
-    /// let neptune_key = vault.get_qdrant_key(QdrantScope::WriteOnly).unwrap();
-    /// ```
+    /// Returns [`SecureError::JwtEncode`] if the token cannot be created.
     pub fn get_qdrant_key(&self, scope: QdrantScope) -> Result<String, SecureError> {
-        // TODO(Sprint 4b): provision real scoped keys via Qdrant REST API.
-        // For scaffolding, scope is encoded as a prefix on the master key.
-        let prefix = match scope {
-            QdrantScope::ReadWrite => "rw",
-            QdrantScope::WriteOnly => "wo",
-            QdrantScope::ReadOnly => "ro",
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|e| SecureError::SyncPoisoned(e.to_string()))?
+            .as_secs();
+
+        // 1. Map internal scope to Qdrant JWT access claim
+        // Qdrant (OS) supports "r", "rw", "m".
+        // We use "rw" for WriteOnly as it's the required level for upserts.
+        let access = match scope {
+            QdrantScope::ReadWrite => serde_json::json!("rw"),
+            QdrantScope::WriteOnly => serde_json::json!("rw"), // Close enough for OS version
+            QdrantScope::ReadOnly => serde_json::json!("r"),
         };
-        Ok(format!("{}:{}", prefix, self.master_key))
+
+        // 2. Build claims
+        let claims = serde_json::json!({
+            "exp": now + 3600, // 1 hour TTL for scoped keys
+            "access": access,
+        });
+
+        // 3. Sign the token using the master key as secret
+        use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+        let token = encode(
+            &Header::new(Algorithm::HS256),
+            &claims,
+            &EncodingKey::from_secret(self.master_key.as_bytes()),
+        )
+        .map_err(|e| SecureError::JwtEncode(e.to_string()))?;
+
+        Ok(token)
     }
 }

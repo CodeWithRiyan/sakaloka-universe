@@ -36,7 +36,7 @@ impl ServiceTokenStore {
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// use sakaloka_secure::{tokens::store::ServiceTokenStore, newtypes::Planet};
     ///
     /// std::env::set_var("SAKALOKA_JWT_SECRET", "test-secret-at-least-32-chars-long!");
@@ -61,7 +61,7 @@ impl ServiceTokenStore {
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// use sakaloka_secure::{tokens::store::ServiceTokenStore, newtypes::Planet};
     ///
     /// std::env::set_var("SAKALOKA_JWT_SECRET", "test-secret-at-least-32-chars-long!");
@@ -82,7 +82,10 @@ impl ServiceTokenStore {
 
         // 1. Check if token is natively valid in cache
         {
-            let cache = self.cache.read().map_err(|e| SecureError::SyncPoisoned(e.to_string()))?;
+            let cache = self
+                .cache
+                .read()
+                .map_err(|e| SecureError::SyncPoisoned(e.to_string()))?;
             if let Some(cached) = cache.get(target_planet.as_str()) {
                 if cached.expires_at > now + 60 {
                     return Ok(cached.token.clone());
@@ -91,7 +94,10 @@ impl ServiceTokenStore {
         }
 
         // 2. Lock for writing and re-check cache (double-checked locking)
-        let mut cache = self.cache.write().map_err(|e| SecureError::SyncPoisoned(e.to_string()))?;
+        let mut cache = self
+            .cache
+            .write()
+            .map_err(|e| SecureError::SyncPoisoned(e.to_string()))?;
         if let Some(cached) = cache.get(target_planet.as_str()) {
             if cached.expires_at > now + 60 {
                 return Ok(cached.token.clone());

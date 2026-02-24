@@ -25,6 +25,8 @@ services:
       - QDRANT_URL=http://qdrant:6333
       - QDRANT_MASTER_KEY=${QDRANT_MASTER_KEY}
       - ZENOH_CONNECT=tcp/zenoh:7447
+      - ZENOH_USER=earth
+      - ZENOH_PASS=Sakaloka123!
     depends_on:
       surrealdb:
         condition: service_healthy
@@ -75,7 +77,10 @@ services:
     image: eclipse/zenoh:1.0.0
     ports:
       - "127.0.0.1:57447:7447"
-    command: ["--no-multicast-scouting"]
+    volumes:
+      - ./config/zenoh.json5:/zenoh.json5:ro
+      - ./config/zenoh-users.dict:/zenoh-users.dict:ro
+    command: ["--config", "/zenoh.json5", "--no-multicast-scouting"]
     healthcheck:
       # zenoh binary is at / — use it to print version as liveness probe
       test: ["CMD", "/zenohd", "--version"]

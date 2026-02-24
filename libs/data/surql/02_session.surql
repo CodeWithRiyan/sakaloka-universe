@@ -1,5 +1,8 @@
 -- SCHEMAFULL table for tracking active user sessions
-DEFINE TABLE session SCHEMAFULL;
+DEFINE TABLE session SCHEMAFULL
+    PERMISSIONS
+        FOR select WHERE 'sakaloka:jupiter' IN $token.aud AND 'db:read' IN $token.service_scopes
+        FOR create, update, delete WHERE 'sakaloka:jupiter' IN $token.aud AND 'db:write' IN $token.service_scopes;
 
 -- Relational link to the user
 DEFINE FIELD user_id ON session TYPE record<user>;

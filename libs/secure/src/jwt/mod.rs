@@ -27,7 +27,7 @@ impl JwtKeys {
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// use sakaloka_secure::jwt::JwtKeys;
     ///
     /// std::env::set_var("SAKALOKA_JWT_SECRET", "test-secret-at-least-32-chars-long!");
