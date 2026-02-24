@@ -18,7 +18,8 @@ mod tests {
     /// Tests the handler directly via Axum's `oneshot` — no real TCP socket required.
     #[tokio::test]
     async fn health_returns_200_with_json() {
-        let app = build_router();
+        let state = crate::state::AppState::new_for_test().await;
+        let app = build_router(state);
 
         let response = app
             .oneshot(

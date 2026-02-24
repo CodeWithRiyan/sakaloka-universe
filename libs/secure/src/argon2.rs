@@ -64,3 +64,40 @@ pub fn verify_password(password: &Password, hash: &str) -> Result<bool, SecureEr
         .is_ok();
     Ok(ok)
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash_and_verify_roundtrip() {
+        let pw = Password::new("secure-sakaloka-password").unwrap();
+        let hash = hash_password(&pw).unwrap();
+        
+        // Assert it starts with the correct PHC prefix
+        assert!(hash.starts_with("$argon2id$"));
+        
+        // Assert it verifies correctly
+        let ok = verify_password(&pw, &hash).unwrap();
+        assert!(ok);
+    }
+
+    #[test]
+    fn test_verify_rejects_wrong_password() {
+        let pw = Password::new("correct-password").unwrap();
+        let wrong_pw = Password::new("wrong-password").unwrap();
+        
+        let hash = hash_password(&pw).unwrap();
+        
+        let ok = verify_password(&wrong_pw, &hash).unwrap();
+        assert!(!ok);
+    }
+
+    #[test]
+    fn test_verify_rejects_malformed_hash() {
+        let pw = Password::new("correct-password").unwrap();
+        let result = verify_password(&pw, "not-a-hash");
+        assert!(matches!(result, Err(SecureError::VerifyFailed)));
+    }
+}

@@ -22,6 +22,7 @@ axum         = { workspace = true }
 # Internal crates
 sakaloka-core   = { workspace = true }
 sakaloka-secure = { workspace = true }
+sakaloka-data   = { workspace = true }
 
 # Axum utilities
 tower      = "0.5"

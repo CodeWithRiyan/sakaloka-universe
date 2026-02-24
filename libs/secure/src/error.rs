@@ -56,4 +56,8 @@ pub enum SecureError {
     /// A password string failed complexity requirements.
     #[error("invalid password: {0}")]
     InvalidPassword(String),
+
+    /// A lock inside token store was poisoned.
+    #[error("synchronization lock poisoned: {0}")]
+    SyncPoisoned(String),
 }

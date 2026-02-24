@@ -1,0 +1,4 @@
+DEFINE NAMESPACE sakaloka;
+USE NAMESPACE sakaloka;
+DEFINE DATABASE universe;
+USE DATABASE universe;

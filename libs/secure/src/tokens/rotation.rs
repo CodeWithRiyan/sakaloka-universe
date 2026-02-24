@@ -1,28 +1,34 @@
 //! Refresh token rotation and JTI blocklist management.
 
 use crate::error::SecureError;
+use std::future::Future;
 
-/// Checks whether a given JTI (token ID) has been blocklisted.
-///
-/// In a full implementation this queries the `jti_blocklist` SurrealDB table.
-/// Returns `Ok(false)` in the scaffold — Sprint 3 wires the real DB check.
+/// Database abstraction for managing the JTI blocklist.
+/// Implemented by the data crate.
+pub trait JtiStore: Send + Sync {
+    /// Checks if a JTI is on the blocklist.
+    fn is_jti_blocked(
+        &self,
+        jti: &str,
+    ) -> impl Future<Output = Result<bool, SecureError>> + Send;
+
+    /// Adds a JTI to the blocklist.
+    fn block_jti(
+        &self,
+        jti: &str,
+        exp: u64,
+    ) -> impl Future<Output = Result<(), SecureError>> + Send;
+}
+
+/// Checks whether a given JTI (token ID) has been blocklisted via the injected store.
 ///
 /// # Errors
 ///
 /// Returns [`SecureError::TokenReused`] if the JTI is on the blocklist.
-///
-/// # Examples
-///
-/// ```rust
-/// use sakaloka_secure::tokens::rotation::check_jti_blocklist;
-///
-/// // In the scaffold, no JTI is blocklisted yet.
-/// let result = check_jti_blocklist("some-jti-uuid");
-/// assert!(result.is_ok());
-/// ```
-pub fn check_jti_blocklist(jti: &str) -> Result<(), SecureError> {
-    // TODO(Sprint 3): query `jti_blocklist` SurrealDB table.
-    // For scaffolding, no JTIs are blocked yet.
-    let _ = jti;
+pub async fn check_jti_blocklist<S: JtiStore>(store: &S, jti: &str) -> Result<(), SecureError> {
+    if store.is_jti_blocked(jti).await? {
+        return Err(SecureError::TokenReused);
+    }
     Ok(())
 }
+

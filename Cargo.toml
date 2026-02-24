@@ -35,7 +35,7 @@ time         = { version = "0.3", features = ["serde"] }
 rand_core    = { version = "0.6", features = ["getrandom"] }
 
 # Database
-surrealdb   = "2"
+surrealdb   = { version = "2", features = ["protocol-ws", "kv-mem"] }
 
 # Vector DB
 qdrant-client = "1"
