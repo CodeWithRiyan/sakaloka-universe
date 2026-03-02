@@ -8,6 +8,7 @@ use axum::{
 };
 #[allow(unused_imports)]
 use sakaloka_core::models::product::Product;
+use sakaloka_secure::rbac::{guard::RequireScope, Scope};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -47,10 +48,20 @@ pub struct ErrorResponse {
 /// Mounts the product CRUD routes.
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/", get(list_products).post(create_product))
+        .route(
+            "/",
+            get(list_products)
+                .route_layer(RequireScope::new(Scope::EntityRead))
+                .post(create_product)
+                .route_layer(RequireScope::new(Scope::EntityWrite)),
+        )
         .route(
             "/{id}",
-            get(get_product).put(update_product).delete(delete_product),
+            get(get_product)
+                .route_layer(RequireScope::new(Scope::EntityRead))
+                .put(update_product)
+                .delete(delete_product)
+                .route_layer(RequireScope::new(Scope::EntityWrite)),
         )
 }
 

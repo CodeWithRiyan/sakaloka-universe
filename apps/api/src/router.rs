@@ -6,7 +6,7 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use crate::auth;
 use crate::controllers;
 use crate::entity;
-use crate::health::health_handler;
+use crate::health::{self, health_handler};
 use crate::state::AppState;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -14,6 +14,9 @@ use utoipa_swagger_ui::SwaggerUi;
 #[derive(OpenApi)]
 #[openapi(
     paths(
+        health::health_handler,
+        auth::login_handler,
+        auth::refresh_handler,
         controllers::product::list_products,
         controllers::product::get_product,
         controllers::product::create_product,
@@ -22,6 +25,11 @@ use utoipa_swagger_ui::SwaggerUi;
     ),
     components(
         schemas(
+            health::HealthResponse,
+            auth::LoginRequest,
+            auth::LoginResponse,
+            auth::RefreshRequest,
+            auth::ErrorResponse,
             sakaloka_core::models::product::Product,
             controllers::product::CreateProductRequest,
             controllers::product::UpdateProductRequest,

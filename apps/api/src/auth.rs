@@ -6,6 +6,7 @@ use sakaloka_secure::jwt::user_claims::issue_user_token;
 use sakaloka_secure::newtypes::{Password, SessionId, UserId};
 use serde::{Deserialize, Serialize};
 use surrealdb_types::ToSql;
+use utoipa::ToSchema;
 
 /// Sets up the nested `/auth` router.
 pub fn router() -> Router<AppState> {
@@ -15,16 +16,18 @@ pub fn router() -> Router<AppState> {
 }
 
 /// Request body for `POST /auth/login`.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct LoginRequest {
     /// The user's account name.
+    #[schema(example = "admin")]
     pub username: String,
     /// The plaintext password.
+    #[schema(example = "sakaloka-dev")]
     pub password: String,
 }
 
 /// Response payload on successful login.
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct LoginResponse {
     /// The short-lived User JWT to be stored in React state.
     pub access_token: String,
@@ -33,7 +36,7 @@ pub struct LoginResponse {
 }
 
 /// A structured error response.
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct ErrorResponse {
     /// E.g. "invalid_credentials"
     pub error: String,
@@ -45,6 +48,18 @@ pub struct ErrorResponse {
 ///
 /// In a real implementation this queries SurrealDB for the user's `$argon2id$` hash
 /// and calls `verify_password`. It then issues the User JWT.
+#[utoipa::path(
+    post,
+    path = "/auth/login",
+    tag = "auth",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "Login successful", body = LoginResponse),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 400, description = "Bad request", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn login_handler(
     State(state): State<AppState>,
     Json(payload): Json<LoginRequest>,
@@ -205,7 +220,7 @@ pub async fn login_handler(
 }
 
 /// Request body for `POST /auth/refresh`.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct RefreshRequest {
     /// The refresh token issued during login or previous refresh.
     pub refresh_token: String,
@@ -215,6 +230,17 @@ pub struct RefreshRequest {
 ///
 /// Validates the refresh token, checks for reuse (terminating session if found),
 /// rotates the token, and issues a new User JWT.
+#[utoipa::path(
+    post,
+    path = "/auth/refresh",
+    tag = "auth",
+    request_body = RefreshRequest,
+    responses(
+        (status = 200, description = "Token refreshed successfully", body = LoginResponse),
+        (status = 401, description = "Unauthorized / Token reused", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn refresh_handler(
     State(state): State<AppState>,
     Json(payload): Json<RefreshRequest>,
