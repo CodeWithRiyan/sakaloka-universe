@@ -7,7 +7,7 @@
 mod tests {
     use axum::{
         body::Body,
-        http::{Request, StatusCode},
+        http::{header, Request, StatusCode},
     };
     use tower::ServiceExt; // for `oneshot`
 
@@ -122,5 +122,50 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(res.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn test_product_list_requires_auth() {
+        use sakaloka_secure::jwt::user_claims::issue_user_token;
+        use sakaloka_secure::newtypes::{SessionId, UserId};
+
+        let state = crate::state::AppState::new_for_test().await;
+        let app = build_router(state.clone());
+
+        // 1. Unauthenticated -> 401
+        let res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/entity/product")
+                    .method("GET")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+
+        // 2. Authenticated with scope -> should try to bit DB and fail with 500 (since DB is None in test state)
+        // This still verifies the route is reachable and RBAC passes.
+        let user_id = UserId::new("user:01JTEST").unwrap();
+        let session = SessionId::new();
+        let token = issue_user_token(&state.keys, &user_id, "viewer", &["entity:read"], &session).unwrap();
+
+        let res = app
+            .oneshot(
+                Request::builder()
+                    .uri("/entity/product")
+                    .method("GET")
+                    .header(header::AUTHORIZATION, format!("Bearer {}", token))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        
+        // It returns 500 because the test state has no DB connection, 
+        // but getting to 500 means it passed middleware and reached the controller.
+        assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 }

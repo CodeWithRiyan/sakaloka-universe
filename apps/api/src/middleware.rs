@@ -51,3 +51,25 @@ pub async fn auth_middleware(
             .into_response(),
     }
 }
+
+/// Middleware for structured JSON logging of requests.
+pub async fn logging_middleware(req: Request, next: Next) -> Response {
+    let start = std::time::Instant::now();
+    let method = req.method().clone();
+    let uri = req.uri().clone();
+
+    let response = next.run(req).await;
+
+    let latency = start.elapsed();
+    let status = response.status();
+
+    tracing::info!(
+        method = %method,
+        uri = %uri,
+        status = status.as_u16(),
+        latency_ms = latency.as_millis(),
+        "HTTP request processed"
+    );
+
+    response
+}

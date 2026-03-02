@@ -11,3 +11,6 @@ thiserror  = { workspace = true }
 uuid       = { workspace = true }
 time       = { workspace = true }
 surrealdb  = { workspace = true }
+surrealdb-types = { workspace = true }
+surrealdb-types-derive = { workspace = true }
+utoipa     = { version = "5" }

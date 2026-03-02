@@ -4,6 +4,7 @@ use crate::state::AppState;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
 use sakaloka_secure::jwt::user_claims::issue_user_token;
 use sakaloka_secure::newtypes::{Password, SessionId, UserId};
+use surrealdb_types::ToSql;
 use serde::{Deserialize, Serialize};
 
 /// Sets up the nested `/auth` router.
@@ -127,7 +128,7 @@ pub async fn login_handler(
     }
 
     // 4. Issue the JWT
-    let user_id = match UserId::new(&user.id.to_string()) {
+    let user_id = match UserId::new(&user.id.to_sql()) {
         Ok(id) => id,
         Err(e) => {
             return (
@@ -279,7 +280,7 @@ pub async fn refresh_handler(
     };
 
     // 3. Issue new User JWT
-    let user_id = match UserId::new(&user.id.to_string()) {
+    let user_id = match UserId::new(&user.id.to_sql()) {
         Ok(id) => id,
         Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     };

@@ -16,6 +16,9 @@ pub struct AppState {
     pub zenoh: Option<ZenohClient>,
     /// The loaded JWT encoding/decoding keys.
     pub keys: Arc<JwtKeys>,
+    /// The service token store for inter-planet communication.
+    #[allow(dead_code)]
+    pub token_store: Arc<sakaloka_secure::tokens::store::ServiceTokenStore>,
 }
 
 #[cfg(test)]
@@ -28,10 +31,13 @@ impl AppState {
             "super-secret-test-key-must-be-long-enough",
         );
         let keys = Arc::new(JwtKeys::from_env().unwrap());
+        let planet = sakaloka_secure::newtypes::Planet::new("test").unwrap();
+        let token_store = Arc::new(sakaloka_secure::tokens::store::ServiceTokenStore::new(planet).unwrap());
         Self {
             db: None,
             zenoh: None,
             keys,
+            token_store,
         }
     }
 }

@@ -15,5 +15,7 @@ tokio           = { workspace = true }
 chrono          = { workspace = true }
 tracing         = { workspace = true }
 surrealdb       = { workspace = true }
+surrealdb-types = { workspace = true }
+surrealdb-types-derive = { workspace = true }
 qdrant-client   = { workspace = true }
 zenoh           = { workspace = true }
