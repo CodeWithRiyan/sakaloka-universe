@@ -32,7 +32,8 @@ impl AppState {
         );
         let keys = Arc::new(JwtKeys::from_env().unwrap());
         let planet = sakaloka_secure::newtypes::Planet::new("test").unwrap();
-        let token_store = Arc::new(sakaloka_secure::tokens::store::ServiceTokenStore::new(planet).unwrap());
+        let token_store =
+            Arc::new(sakaloka_secure::tokens::store::ServiceTokenStore::new(planet).unwrap());
         Self {
             db: None,
             zenoh: None,

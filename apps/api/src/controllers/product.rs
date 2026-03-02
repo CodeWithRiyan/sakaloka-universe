@@ -1,3 +1,4 @@
+use crate::state::AppState;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -7,7 +8,6 @@ use axum::{
 };
 #[allow(unused_imports)]
 use sakaloka_core::models::product::Product;
-use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -48,7 +48,10 @@ pub struct ErrorResponse {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_products).post(create_product))
-        .route("/{id}", get(get_product).put(update_product).delete(delete_product))
+        .route(
+            "/{id}",
+            get(get_product).put(update_product).delete(delete_product),
+        )
 }
 
 #[utoipa::path(
@@ -94,10 +97,7 @@ async fn list_products(State(state): State<AppState>) -> impl IntoResponse {
     ),
     security(("bearer_auth" = []))
 )]
-async fn get_product(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
+async fn get_product(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
     let db = match &state.db {
         Some(db) => db,
         None => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
@@ -144,7 +144,15 @@ async fn create_product(
         None => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     };
 
-    match db.create_product(&payload.name, &payload.sku, payload.price, payload.description.as_deref()).await {
+    match db
+        .create_product(
+            &payload.name,
+            &payload.sku,
+            payload.price,
+            payload.description.as_deref(),
+        )
+        .await
+    {
         Ok(product) => (StatusCode::CREATED, Json(product)).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -182,7 +190,15 @@ async fn update_product(
         None => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     };
 
-    match db.update_product(&id, payload.name.as_deref(), payload.price, payload.description.as_deref()).await {
+    match db
+        .update_product(
+            &id,
+            payload.name.as_deref(),
+            payload.price,
+            payload.description.as_deref(),
+        )
+        .await
+    {
         Ok(product) => (StatusCode::OK, Json(product)).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,

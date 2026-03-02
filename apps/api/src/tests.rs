@@ -150,7 +150,8 @@ mod tests {
         // This still verifies the route is reachable and RBAC passes.
         let user_id = UserId::new("user:01JTEST").unwrap();
         let session = SessionId::new();
-        let token = issue_user_token(&state.keys, &user_id, "viewer", &["entity:read"], &session).unwrap();
+        let token =
+            issue_user_token(&state.keys, &user_id, "viewer", &["entity:read"], &session).unwrap();
 
         let res = app
             .oneshot(
@@ -163,8 +164,8 @@ mod tests {
             )
             .await
             .unwrap();
-        
-        // It returns 500 because the test state has no DB connection, 
+
+        // It returns 500 because the test state has no DB connection,
         // but getting to 500 means it passed middleware and reached the controller.
         assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }

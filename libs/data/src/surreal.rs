@@ -3,9 +3,9 @@
 //! Always use the authenticated client from this module.
 //! Never embed raw SurrealDB credentials in application code.
 
-use thiserror::Error;
 use surrealdb_types::SurrealValue;
 use surrealdb_types_derive::SurrealValue as SurrealValueMacro;
+use thiserror::Error;
 
 /// Errors produced by the SurrealDB client layer.
 #[derive(Debug, Error)]
@@ -30,27 +30,31 @@ impl SurrealClient {
     /// # Errors
     /// Returns a [`SurrealError`] if the connection fails or `USE` fails.
     pub async fn connect(url: &str) -> Result<Self, SurrealError> {
-        let clean_url = url.trim_start_matches("http://").trim_start_matches("ws://");
+        let clean_url = url
+            .trim_start_matches("http://")
+            .trim_start_matches("ws://");
         tracing::info!(url = %clean_url, "🧵 SurrealClient connecting with HTTP engine");
-        
+
         // Add a timeout to avoid hanging indefinitely
         let db = tokio::time::timeout(
             std::time::Duration::from_secs(10),
-            surrealdb::Surreal::new::<surrealdb::engine::remote::http::Http>(clean_url)
-        ).await
+            surrealdb::Surreal::new::<surrealdb::engine::remote::http::Http>(clean_url),
+        )
+        .await
         .map_err(|_| SurrealError::Connection("Connection timeout at engine init".to_string()))?
         .map_err(|e| SurrealError::Connection(e.to_string()))?;
-        
+
         tracing::info!("🧵 SurrealClient engine initialized");
 
         tracing::info!("🧵 SurrealClient switching to sakaloka/universe");
         tokio::time::timeout(
             std::time::Duration::from_secs(5),
-            db.use_ns("sakaloka").use_db("universe")
-        ).await
+            db.use_ns("sakaloka").use_db("universe"),
+        )
+        .await
         .map_err(|_| SurrealError::Connection("Timeout switching namespace/db".to_string()))?
         .map_err(|e| SurrealError::Connection(e.to_string()))?;
-        
+
         tracing::info!("🧵 SurrealClient namespace/db set");
 
         Ok(Self { db })
@@ -215,13 +219,17 @@ impl SurrealClient {
         price: u64,
         description: Option<&str>,
     ) -> Result<sakaloka_core::models::product::Product, SurrealError> {
-        let mut result = self.db.query("
+        let mut result = self
+            .db
+            .query(
+                "
             CREATE product SET 
                 name = $name,
                 sku = $sku,
                 price = $price,
                 description = $description
-        ")
+        ",
+            )
             .bind(("name", name.to_string()))
             .bind(("sku", sku.to_string()))
             .bind(("price", price))
@@ -249,13 +257,17 @@ impl SurrealClient {
             surrealdb_types::RecordIdKey::String(id.replace("product:", "")),
         );
 
-        let mut result = self.db.query("
+        let mut result = self
+            .db
+            .query(
+                "
             UPDATE $id MERGE {
                 name: IF $name != NONE THEN $name ELSE name END,
                 price: IF $price != NONE THEN $price ELSE price END,
                 description: IF $description != NONE THEN $description ELSE description END
             }
-        ")
+        ",
+            )
             .bind(("id", tid))
             .bind(("name", name.map(String::from)))
             .bind(("price", price))
@@ -353,22 +365,20 @@ impl sakaloka_secure::tokens::rotation::RefreshStore for SurrealClient {
             sakaloka_secure::error::SecureError::JwtDecode(format!("Query error: {}", e))
         })?;
 
-        Ok(
-            token.map(|t| {
-                let expires_at: chrono::DateTime<chrono::Utc> = t.expires_at.into();
-                let rotated_at: Option<chrono::DateTime<chrono::Utc>> = t.rotated_at.map(|r| r.into());
-                let sid_raw = match &t.session_id.key {
-                    surrealdb_types::RecordIdKey::String(s) => s.clone(),
-                    surrealdb_types::RecordIdKey::Uuid(u) => u.to_string(),
-                    _ => format!("{:?}", t.session_id.key),
-                };
-                sakaloka_secure::tokens::rotation::RefreshTokenRecord {
-                    session_id: sakaloka_secure::newtypes::SessionId::new_with_raw(&sid_raw),
-                    expires_at: expires_at.timestamp() as u64,
-                    rotated_at: rotated_at.map(|r| r.timestamp() as u64),
-                }
-            }),
-        )
+        Ok(token.map(|t| {
+            let expires_at: chrono::DateTime<chrono::Utc> = t.expires_at.into();
+            let rotated_at: Option<chrono::DateTime<chrono::Utc>> = t.rotated_at.map(|r| r.into());
+            let sid_raw = match &t.session_id.key {
+                surrealdb_types::RecordIdKey::String(s) => s.clone(),
+                surrealdb_types::RecordIdKey::Uuid(u) => u.to_string(),
+                _ => format!("{:?}", t.session_id.key),
+            };
+            sakaloka_secure::tokens::rotation::RefreshTokenRecord {
+                session_id: sakaloka_secure::newtypes::SessionId::new_with_raw(&sid_raw),
+                expires_at: expires_at.timestamp() as u64,
+                rotated_at: rotated_at.map(|r| r.timestamp() as u64),
+            }
+        }))
     }
 
     async fn rotate_token(

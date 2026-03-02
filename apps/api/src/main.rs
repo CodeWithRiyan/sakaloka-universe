@@ -61,8 +61,10 @@ async fn main() -> anyhow::Result<()> {
 
     let earth_planet = sakaloka_secure::newtypes::Planet::new("earth")
         .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-    let token_store = Arc::new(sakaloka_secure::tokens::store::ServiceTokenStore::new(earth_planet)
-        .context("Failed to initialize ServiceTokenStore")?);
+    let token_store = Arc::new(
+        sakaloka_secure::tokens::store::ServiceTokenStore::new(earth_planet)
+            .context("Failed to initialize ServiceTokenStore")?,
+    );
 
     let db_user = std::env::var("SURREALDB_USER").unwrap_or_else(|_| "root".into());
     let db_pass = std::env::var("SURREALDB_PASS").unwrap_or_else(|_| "sakaloka-dev".into());

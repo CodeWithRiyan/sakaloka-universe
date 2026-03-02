@@ -4,8 +4,8 @@ use crate::state::AppState;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
 use sakaloka_secure::jwt::user_claims::issue_user_token;
 use sakaloka_secure::newtypes::{Password, SessionId, UserId};
-use surrealdb_types::ToSql;
 use serde::{Deserialize, Serialize};
+use surrealdb_types::ToSql;
 
 /// Sets up the nested `/auth` router.
 pub fn router() -> Router<AppState> {
