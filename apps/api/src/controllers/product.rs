@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::get,
+    routing::{delete, get, post, put},
     Json, Router,
 };
 #[allow(unused_imports)]
@@ -50,18 +50,23 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route(
             "/",
-            get(list_products)
-                .route_layer(RequireScope::new(Scope::EntityRead))
-                .post(create_product)
-                .route_layer(RequireScope::new(Scope::EntityWrite)),
+            get(list_products).route_layer(RequireScope::new(Scope::EntityRead)),
+        )
+        .route(
+            "/",
+            post(create_product).route_layer(RequireScope::new(Scope::EntityWrite)),
         )
         .route(
             "/{id}",
-            get(get_product)
-                .route_layer(RequireScope::new(Scope::EntityRead))
-                .put(update_product)
-                .delete(delete_product)
-                .route_layer(RequireScope::new(Scope::EntityWrite)),
+            get(get_product).route_layer(RequireScope::new(Scope::EntityRead)),
+        )
+        .route(
+            "/{id}",
+            put(update_product).route_layer(RequireScope::new(Scope::EntityWrite)),
+        )
+        .route(
+            "/{id}",
+            delete(delete_product).route_layer(RequireScope::new(Scope::EntityWrite)),
         )
 }
 
