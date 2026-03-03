@@ -28,6 +28,8 @@ services:
       - ZENOH_USER=earth
       - ZENOH_PASS=Sakaloka123!
     depends_on:
+      mars-ockam:
+        condition: service_healthy
       surrealdb:
         condition: service_healthy
       qdrant:
@@ -41,6 +43,32 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
+    restart: unless-stopped
+    networks:
+      - sakaloka-net
+
+  # ─────────────────────────────────────────────────────────────
+  # 🔴 Mars — Ockam secure channel broker (apps/ockam)
+  # External: 127.0.0.1:54000 → 4000
+  # All inter-planet traffic routes through here (Sprint 12).
+  # ─────────────────────────────────────────────────────────────
+  mars-ockam:
+    build:
+      context: .
+      dockerfile: apps/ockam/Dockerfile
+    ports:
+      - "127.0.0.1:54000:4000"
+    environment:
+      - RUST_LOG=info
+      - SAKALOKA_JWT_SECRET=${SAKALOKA_JWT_SECRET}
+      - SAKALOKA_OCKAM_SECRET=${SAKALOKA_OCKAM_SECRET}
+      - OCKAM_PORT=4000
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/4000 && echo ok >&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
     networks:
       - sakaloka-net

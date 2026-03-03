@@ -1,0 +1,16 @@
+[package]
+name = "sakaloka-hal"
+version = "0.1.0"
+edition = "2021"
+description = "Sakaloka-Universe — Mercury: Hardware Abstraction Layer (no_std)"
+license = "MIT"
+
+# ──────────────────────────────────────────────────────────────
+# This crate is no_std. It MUST NOT import std, tokio, or any
+# async runtime. RTIC provides its own task scheduler on bare metal.
+# ──────────────────────────────────────────────────────────────
+[features]
+default = []
+
+[dependencies]
+# no_std dependencies only — intentionally empty for the scaffold.

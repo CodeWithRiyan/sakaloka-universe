@@ -2,11 +2,15 @@
 resolver = "2"
 members = [
     "apps/api",
+    "apps/ockam",
     "libs/core",
     "libs/data",
     "libs/secure",
     "libs/ai",
+    "libs/hal",
 ]
+# apps/firmware requires cross-compilation: cargo build -p sakaloka-firmware --target thumbv7em-none-eabihf
+exclude = ["apps/firmware"]
 
 [workspace.dependencies]
 # Async runtime
@@ -60,3 +64,4 @@ sakaloka-core   = { path = "libs/core" }
 sakaloka-secure = { path = "libs/secure" }
 sakaloka-data   = { path = "libs/data" }
 sakaloka-ai     = { path = "libs/ai" }
+sakaloka-hal    = { path = "libs/hal" }

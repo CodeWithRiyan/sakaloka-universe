@@ -1,0 +1,22 @@
+[package]
+name = "sakaloka-ockam"
+version = "0.1.0"
+edition = "2021"
+description = "Sakaloka-Universe — Mars: Ockam secure channel broker"
+license = "MIT"
+
+[[bin]]
+name = "sakaloka-ockam"
+path = "src/main.rs"
+
+[dependencies]
+# Workspace shared deps
+tokio   = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow  = { workspace = true }
+dotenvy = { workspace = true }
+
+# Internal crates
+sakaloka-core   = { workspace = true }
+sakaloka-secure = { workspace = true }

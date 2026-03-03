@@ -7819,6 +7819,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "sakaloka-hal"
+version = "0.1.0"
+
+[[package]]
+name = "sakaloka-ockam"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dotenvy",
+ "sakaloka-core",
+ "sakaloka-secure",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "sakaloka-secure"
 version = "0.1.0"
 dependencies = [

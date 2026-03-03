@@ -1,0 +1,33 @@
+[package]
+name = "sakaloka-firmware"
+version = "0.1.0"
+edition = "2021"
+description = "Sakaloka-Universe — Mercury: RTIC bare-metal firmware (no_std)"
+license = "MIT"
+
+# ──────────────────────────────────────────────────────────────
+# Target: thumbv7em-none-eabihf (ARM Cortex-M4 with FPU)
+# Build with: cargo build --target thumbv7em-none-eabihf
+# Flash with: cargo flash or probe-rs
+# ──────────────────────────────────────────────────────────────
+[[bin]]
+name = "sakaloka-firmware"
+path = "src/main.rs"
+
+[dependencies]
+# HAL layer
+sakaloka-hal = { path = "../../libs/hal" }
+
+# Cortex-M support
+cortex-m = { version = "0.7", features = ["critical-section-single-core"] }
+cortex-m-rt = "0.7"
+
+# Panic handler for no_std (halts on panic, never unwinds)
+panic-halt = "0.2"
+
+[profile.release]
+# Optimize for size on embedded targets
+opt-level = "z"
+lto = true
+codegen-units = 1
+debug = true
