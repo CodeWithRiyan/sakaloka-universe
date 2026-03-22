@@ -18,6 +18,11 @@
 .idea/
 *.code-workspace
 
+# Venus (Tauri + React) frontend
+apps/venus/node_modules/
+apps/venus/dist/
+apps/venus/.react-router/
+
 # MdBook output
 /docs/book/
 
@@ -32,3 +37,6 @@
 # Temporary files
 *.swp
 *.bak
+
+# code-review-graph
+.code-review-graph/

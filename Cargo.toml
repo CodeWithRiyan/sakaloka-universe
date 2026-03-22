@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "apps/api",
     "apps/ockam",
+    "apps/venus/src-tauri",
     "libs/core",
     "libs/data",
     "libs/secure",
