@@ -18,10 +18,10 @@
 .idea/
 *.code-workspace
 
-# Venus (Tauri + React) frontend
-apps/venus/node_modules/
-apps/venus/dist/
-apps/venus/.react-router/
+# Venus (Tauri + React) frontend — only src-tauri/ is tracked
+apps/venus/*
+!apps/venus/src-tauri/
+!apps/venus/CLAUDE.md
 
 # MdBook output
 /docs/book/
