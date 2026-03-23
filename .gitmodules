@@ -1,0 +1,3 @@
+[submodule "sakapos"]
+	path = sakapos
+	url = https://github.com/CodeWithRiyan/sakapos.git
