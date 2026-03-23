@@ -1,4 +1,4 @@
-//! Sakaloka-Universe — Earth: Loco.rs REST API entry point.
+//! Sakaloka API — CLI tool for database tasks, code generation, etc.
 
 use loco_rs::cli;
 use migration::Migrator;

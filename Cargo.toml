@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "apps/api",
+    "apps/api/migration",
     "apps/ockam",
     "apps/venus/src-tauri",
     "libs/core",
@@ -58,7 +59,7 @@ zenoh       = "1"
 burn        = { version = "0.16", features = ["ndarray"] }
 
 # Loco framework
-loco-rs     = { version = "0.14", features = ["with-db"] }
+loco-rs     = { version = "0.16", features = ["with-db"] }
 
 # Internal crates
 sakaloka-core   = { path = "libs/core" }

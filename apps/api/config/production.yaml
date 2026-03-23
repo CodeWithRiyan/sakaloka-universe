@@ -1,0 +1,28 @@
+logger:
+  enable: true
+  pretty_backtrace: false
+  level: info
+  format: json
+
+server:
+  binding: 0.0.0.0
+  port: "{{ get_env(name="PORT", default="3000") }}"
+  middlewares:
+    cors:
+      enable: true
+      allow_origins:
+        - "{{ get_env(name="CORS_ORIGIN", default="https://cashier.sakaloka.id") }}"
+
+database:
+  uri: "{{ get_env(name="DATABASE_URL") }}"
+  enable_logging: false
+  connect_timeout: 5000
+  idle_timeout: 10000
+  min_connections: 5
+  max_connections: 20
+  auto_migrate: true
+
+auth:
+  jwt:
+    secret: "{{ get_env(name="SAKALOKA_JWT_SECRET") }}"
+    expiration: 900

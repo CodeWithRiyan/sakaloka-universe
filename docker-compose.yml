@@ -21,6 +21,7 @@ services:
     environment:
       - RUST_LOG=info
       - SAKALOKA_JWT_SECRET=${SAKALOKA_JWT_SECRET}
+      - DATABASE_URL=postgres://sakaloka:sakaloka_dev@postgres:5432/sakaloka
       - SURREALDB_URL=ws://surrealdb:8000
       - QDRANT_URL=http://qdrant:6333
       - QDRANT_MASTER_KEY=${QDRANT_MASTER_KEY}
@@ -28,6 +29,8 @@ services:
       - ZENOH_USER=earth
       - ZENOH_PASS=Sakaloka123!
     depends_on:
+      postgres:
+        condition: service_healthy
       mars-ockam:
         condition: service_healthy
       surrealdb:
@@ -65,6 +68,30 @@ services:
       - OCKAM_PORT=4000
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/4000 && echo ok >&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - sakaloka-net
+
+  # ─────────────────────────────────────────────────────────────
+  # 🐘 Postgres — Primary relational DB for Loco API
+  # External: 127.0.0.1:55432 → 5432
+  # ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "127.0.0.1:55432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sakaloka_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-sakaloka}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sakaloka_dev}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sakaloka}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -154,6 +181,8 @@ services:
 # Volumes & Networks
 # ─────────────────────────────────────────────────────────────
 volumes:
+  postgres-data:
+    driver: local
   qdrant-data:
     driver: local
 

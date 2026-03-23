@@ -15,6 +15,21 @@ jobs:
     name: "⚔️ Iron Curtain Checks"
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sakaloka_test
+          POSTGRES_USER: sakaloka
+          POSTGRES_PASSWORD: sakaloka_dev
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U sakaloka"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,7 +39,7 @@ jobs:
       - name: Install system dependencies (Tauri / WebKitGTK)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
       - name: Install Rust stable with components
         uses: dtolnay/rust-toolchain@stable
@@ -59,6 +74,7 @@ jobs:
         run: cargo test --workspace
         env:
           SAKALOKA_JWT_SECRET: "ci-test-secret-at-least-32-chars-long!"
+          DATABASE_URL: "postgres://sakaloka:sakaloka_dev@127.0.0.1:55432/sakaloka_test"
 
       # AC-03: 100% public API documentation
       - name: "📚 cargo doc (deny missing_docs)"
