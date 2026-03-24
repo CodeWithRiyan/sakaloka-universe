@@ -1,0 +1,289 @@
+name: "Sakaloka POS — Build & Release"
+
+on:
+  push:
+    branches: [dev, main]
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - sit
+          - demo
+          - prod
+      draft:
+        description: "Create as draft release"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+# ─────────────────────────────────────────────────────────────
+# Environment resolution:
+#   push dev branch       → dev
+#   push main branch      → sit
+#   tag v*-demo*          → demo
+#   tag v* (no suffix)    → prod
+#   workflow_dispatch      → user-selected
+# ─────────────────────────────────────────────────────────────
+
+jobs:
+  resolve-env:
+    name: "Resolve Environment"
+    runs-on: ubuntu-latest
+    outputs:
+      env_name: ${{ steps.resolve.outputs.env_name }}
+      is_release: ${{ steps.resolve.outputs.is_release }}
+      is_draft: ${{ steps.resolve.outputs.is_draft }}
+      version_tag: ${{ steps.resolve.outputs.version_tag }}
+    steps:
+      - name: Determine environment from trigger
+        id: resolve
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            ENV="${{ github.event.inputs.environment }}"
+            IS_DRAFT="${{ github.event.inputs.draft }}"
+            IS_RELEASE="true"
+            VERSION_TAG="manual-$(date +%Y%m%d-%H%M%S)"
+          elif [[ "${{ github.ref }}" == refs/tags/v*-demo* ]]; then
+            ENV="demo"
+            IS_DRAFT="true"
+            IS_RELEASE="true"
+            VERSION_TAG="${{ github.ref_name }}"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            ENV="prod"
+            IS_DRAFT="false"
+            IS_RELEASE="true"
+            VERSION_TAG="${{ github.ref_name }}"
+          elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
+            ENV="sit"
+            IS_DRAFT="true"
+            IS_RELEASE="false"
+            VERSION_TAG=""
+          elif [[ "${{ github.ref }}" == refs/heads/dev ]]; then
+            ENV="dev"
+            IS_DRAFT="true"
+            IS_RELEASE="false"
+            VERSION_TAG=""
+          else
+            echo "::error::Unknown trigger ref: ${{ github.ref }}"
+            exit 1
+          fi
+          echo "env_name=$ENV"       >> "$GITHUB_OUTPUT"
+          echo "is_release=$IS_RELEASE" >> "$GITHUB_OUTPUT"
+          echo "is_draft=$IS_DRAFT"     >> "$GITHUB_OUTPUT"
+          echo "version_tag=$VERSION_TAG" >> "$GITHUB_OUTPUT"
+          echo "### Environment: \`$ENV\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Release: $IS_RELEASE | Draft: $IS_DRAFT | Tag: $VERSION_TAG" >> "$GITHUB_STEP_SUMMARY"
+
+  build-desktop:
+    name: "Desktop (${{ matrix.platform.name }}) — ${{ needs.resolve-env.outputs.env_name }}"
+    needs: resolve-env
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: Linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - name: macOS (Apple Silicon)
+            os: macos-latest
+            target: aarch64-apple-darwin
+          - name: macOS (Intel)
+            os: macos-13
+            target: x86_64-apple-darwin
+          - name: Windows
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.platform.os }}
+    environment: ${{ needs.resolve-env.outputs.env_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-tauri-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-tauri-
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/venus/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: apps/venus
+        run: pnpm install --frozen-lockfile
+
+      - name: Activate environment config
+        working-directory: apps/venus
+        shell: bash
+        run: cp .env.${{ needs.resolve-env.outputs.env_name }} .env
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/venus
+          tauriScript: pnpm tauri
+          tagName: ${{ needs.resolve-env.outputs.version_tag || '' }}
+          releaseName: "Sakaloka POS ${{ needs.resolve-env.outputs.version_tag }} (${{ needs.resolve-env.outputs.env_name }})"
+          releaseDraft: ${{ needs.resolve-env.outputs.is_draft }}
+          prerelease: ${{ needs.resolve-env.outputs.env_name != 'prod' }}
+          args: --target ${{ matrix.platform.target }}
+
+  build-android:
+    name: "Android — ${{ needs.resolve-env.outputs.env_name }}"
+    needs: resolve-env
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve-env.outputs.env_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: sdkmanager --install "ndk;27.0.12077973"
+
+      - name: Install Rust stable with Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-android-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-android-
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/venus/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: apps/venus
+        run: pnpm install --frozen-lockfile
+
+      - name: Activate environment config
+        working-directory: apps/venus
+        run: cp .env.${{ needs.resolve-env.outputs.env_name }} .env
+
+      - name: Initialize Tauri Android project
+        working-directory: apps/venus
+        run: pnpm tauri android init
+
+      - name: Build Android APK (debug)
+        if: ${{ needs.resolve-env.outputs.env_name != 'prod' }}
+        working-directory: apps/venus
+        run: pnpm tauri android build --apk
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
+
+      - name: Decode signing keystore
+        if: ${{ needs.resolve-env.outputs.env_name == 'prod' }}
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > /tmp/keystore.jks
+
+      - name: Build Android APK (signed release)
+        if: ${{ needs.resolve-env.outputs.env_name == 'prod' }}
+        working-directory: apps/venus
+        run: pnpm tauri android build --apk
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
+          TAURI_ANDROID_KEYSTORE_PATH: /tmp/keystore.jks
+          TAURI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          TAURI_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          TAURI_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Find APK
+        id: find-apk
+        run: |
+          APK=$(find apps/venus/src-tauri/gen/android -name "*.apk" -type f | head -1)
+          echo "path=$APK" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename $APK .apk)-${{ needs.resolve-env.outputs.env_name }}.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Rename APK with environment suffix
+        run: |
+          cp "${{ steps.find-apk.outputs.path }}" \
+             "/tmp/${{ steps.find-apk.outputs.name }}"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-${{ needs.resolve-env.outputs.env_name }}
+          path: /tmp/${{ steps.find-apk.outputs.name }}
+
+      - name: Upload APK to release
+        if: needs.resolve-env.outputs.is_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve-env.outputs.version_tag }}
+          draft: ${{ needs.resolve-env.outputs.is_draft }}
+          files: /tmp/${{ steps.find-apk.outputs.name }}
