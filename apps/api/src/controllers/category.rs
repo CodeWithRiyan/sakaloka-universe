@@ -1,28 +1,27 @@
 //! Category CRUD controller.
 
-use axum::extract::Extension;
-use loco_rs::prelude::*;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    Set,
+use axum::{
+    extract::{Extension, Path, Query, State},
+    routing::get,
+    Json, Router,
 };
-use uuid::Uuid;
 
-use crate::models::_entities::categories;
+use crate::app::AppState;
+use crate::error::ApiError;
 use crate::views::{
     category::{CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest},
     ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
-/// Registers all `/api/products/categories` routes.
-pub fn routes() -> Routes {
-    Routes::new()
-        .prefix("api/products/categories")
-        .add("/", get(list))
-        .add("/", post(create))
-        .add("/:id", get(show))
-        .add("/:id", patch(update))
-        .add("/:id", delete(remove))
+/// Registers all `/products/categories` routes (nested under `/api` by the
+/// top-level router).
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/products/categories", get(list).post(create))
+        .route(
+            "/products/categories/{id}",
+            get(show).patch(update).delete(remove),
+        )
 }
 
 /// Produce a URL-friendly slug from a name.
@@ -37,56 +36,43 @@ fn slugify(name: &str) -> String {
         .join("-")
 }
 
-/// `GET /api/products/categories` — list categories with pagination and search.
+/// `GET /api/products/categories` — list categories with pagination and
+/// search.
 async fn list(
-    State(ctx): State<AppContext>,
+    State(state): State<AppState>,
     Query(params): Query<PaginationParams>,
-) -> Result<Response> {
+) -> Result<Json<PaginatedResponse<CategoryResponse>>, ApiError> {
     let page = params.page();
     let limit = params.limit();
+    let start = (page - 1) * limit;
 
-    let mut condition = Condition::all();
-    if let Some(ref search) = params.search {
-        if !search.is_empty() {
-            condition = condition.add(
-                Condition::any()
-                    .add(categories::Column::Name.contains(search))
-                    .add(categories::Column::Slug.contains(search)),
-            );
-        }
-    }
-
-    let total = categories::Entity::find()
-        .filter(condition.clone())
-        .count(&ctx.db)
+    let total = state
+        .db
+        .count_categories(params.search.as_deref())
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to count categories");
-            Error::InternalServerError
+            ApiError::Internal(anyhow::anyhow!("Failed to count categories"))
         })?;
 
-    let mut query = categories::Entity::find().filter(condition);
-    query = match params.sort_by.as_deref() {
-        Some("name") if params.is_desc() => query.order_by_desc(categories::Column::Name),
-        Some("name") => query.order_by_asc(categories::Column::Name),
-        _ => query.order_by_desc(categories::Column::CreatedAt),
-    };
-
-    let items = query
-        .paginate(&ctx.db, limit)
-        .fetch_page(params.offset())
+    let items = state
+        .db
+        .list_categories(
+            limit,
+            start,
+            params.search.as_deref(),
+            params.sort_by.as_deref().unwrap_or("created_at"),
+            params.is_desc(),
+        )
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to list categories");
-            Error::InternalServerError
+            ApiError::Internal(anyhow::anyhow!("Failed to list categories"))
         })?;
 
-    let responses: Vec<CategoryResponse> = items
-        .into_iter()
-        .map(CategoryResponse::from_model)
-        .collect();
+    let responses: Vec<CategoryResponse> = items.iter().map(CategoryResponse::from_model).collect();
 
-    format::json(PaginatedResponse {
+    Ok(Json(PaginatedResponse {
         success: true,
         message: "Categories retrieved".to_string(),
         data: PaginatedData {
@@ -94,168 +80,159 @@ async fn list(
             pagination: PageMeta::new(page, limit, total),
             filters: ListFilters::from_params(&params),
         },
-    })
+    }))
 }
 
 /// `GET /api/products/categories/:id` — fetch a single category.
-async fn show(State(ctx): State<AppContext>, Path(id): Path<Uuid>) -> Result<Response> {
-    let category = categories::Entity::find_by_id(id)
-        .one(&ctx.db)
-        .await
-        .map_err(|_| Error::InternalServerError)?;
+async fn show(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<CategoryResponse>>, ApiError> {
+    let category = state.db.find_category(&id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to find category");
+        ApiError::Internal(anyhow::anyhow!("Failed to find category"))
+    })?;
 
     match category {
-        Some(c) => format::json(ApiResponse::ok(
-            CategoryResponse::from_model(c),
+        Some(c) => Ok(Json(ApiResponse::ok(
+            CategoryResponse::from_model(&c),
             "Category retrieved",
-        )),
-        None => format::json(ApiResponse::<()>::not_found("Category")),
+        ))),
+        None => Ok(Json(ApiResponse::not_found("Category"))),
     }
 }
 
 /// `POST /api/products/categories` — create a new category.
 async fn create(
-    State(ctx): State<AppContext>,
+    State(state): State<AppState>,
     Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Json(payload): Json<CreateCategoryRequest>,
-) -> Result<Response> {
+) -> Result<Json<ApiResponse<CategoryResponse>>, ApiError> {
     if payload.name.trim().is_empty() {
-        return format::json(ApiResponse::<()>::validation(vec![
+        return Ok(Json(ApiResponse::validation(vec![
             "name is required".to_string()
-        ]));
+        ])));
     }
 
     // Validate parent_id if provided
-    if let Some(parent_id) = payload.parent_id {
-        let parent = categories::Entity::find_by_id(parent_id)
-            .one(&ctx.db)
-            .await
-            .map_err(|_| Error::InternalServerError)?;
+    if let Some(ref parent_id) = payload.parent_id {
+        let parent = state.db.find_category(parent_id).await.map_err(|e| {
+            tracing::error!(error = %e, "Failed to validate parent category");
+            ApiError::Internal(anyhow::anyhow!("Failed to validate parent category"))
+        })?;
         if parent.is_none() {
-            return format::json(ApiResponse::<()>::error(
+            return Ok(Json(ApiResponse::error(
                 "invalid_parent",
                 "Parent category not found",
-            ));
+            )));
         }
     }
 
-    let user_id: Option<Uuid> = claims.sub.parse().ok();
     let slug = slugify(&payload.name);
-    let now = chrono::Utc::now().fixed_offset();
-    let id = Uuid::new_v4();
-    let org_id = user_id.unwrap_or(Uuid::new_v4());
 
-    let model = categories::ActiveModel {
-        id: Set(id),
-        name: Set(payload.name),
-        slug: Set(slug),
-        description: Set(payload.description),
-        parent_id: Set(payload.parent_id),
-        image_url: Set(payload.image_url),
-        organization_id: Set(org_id),
-        created_by: Set(user_id),
-        created_at: Set(now),
-        updated_at: Set(now),
-    };
+    let result = state
+        .db
+        .create_category(
+            &payload.name,
+            &slug,
+            &claims.sub, // org_id — using caller's ID as fallback
+            payload.description.as_deref(),
+            payload.parent_id.as_deref(),
+            payload.image_url.as_deref(),
+            Some(claims.sub.as_str()),
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to create category");
+            ApiError::Internal(anyhow::anyhow!("Failed to create category"))
+        })?;
 
-    let result = model.insert(&ctx.db).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to create category");
-        Error::InternalServerError
-    })?;
-
-    format::json(ApiResponse::created(
-        CategoryResponse::from_model(result),
+    Ok(Json(ApiResponse::created(
+        CategoryResponse::from_model(&result),
         "Category created",
-    ))
+    )))
 }
 
 /// `PATCH /api/products/categories/:id` — update an existing category.
 async fn update(
-    State(ctx): State<AppContext>,
-    Path(id): Path<Uuid>,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
     Json(payload): Json<UpdateCategoryRequest>,
-) -> Result<Response> {
-    let existing = categories::Entity::find_by_id(id)
-        .one(&ctx.db)
-        .await
-        .map_err(|_| Error::InternalServerError)?;
+) -> Result<Json<ApiResponse<CategoryResponse>>, ApiError> {
+    let existing = state.db.find_category(&id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to find category for update");
+        ApiError::Internal(anyhow::anyhow!("Failed to find category"))
+    })?;
 
-    let existing = match existing {
-        Some(c) => c,
-        None => return format::json(ApiResponse::<()>::not_found("Category")),
-    };
+    if existing.is_none() {
+        return Ok(Json(ApiResponse::not_found("Category")));
+    }
 
     // Prevent circular parent references
-    if let Some(parent_id) = payload.parent_id {
-        if parent_id == id {
-            return format::json(ApiResponse::<()>::error(
+    if let Some(ref parent_id) = payload.parent_id {
+        if *parent_id == id {
+            return Ok(Json(ApiResponse::error(
                 "invalid_parent",
                 "A category cannot be its own parent",
-            ));
+            )));
         }
     }
 
-    let mut active: categories::ActiveModel = existing.into();
+    let slug = payload.name.as_ref().map(|n| slugify(n));
 
-    if let Some(name) = payload.name {
-        active.slug = Set(slugify(&name));
-        active.name = Set(name);
-    }
-    if let Some(description) = payload.description {
-        active.description = Set(Some(description));
-    }
-    if let Some(parent_id) = payload.parent_id {
-        active.parent_id = Set(Some(parent_id));
-    }
-    if let Some(image_url) = payload.image_url {
-        active.image_url = Set(Some(image_url));
-    }
+    let updated = state
+        .db
+        .update_category(
+            &id,
+            payload.name.as_deref(),
+            slug.as_deref(),
+            payload.description.as_deref(),
+            payload.parent_id.as_deref(),
+            payload.image_url.as_deref(),
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to update category");
+            ApiError::Internal(anyhow::anyhow!("Failed to update category"))
+        })?;
 
-    active.updated_at = Set(chrono::Utc::now().fixed_offset());
-
-    let updated = active.update(&ctx.db).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to update category");
-        Error::InternalServerError
-    })?;
-
-    format::json(ApiResponse::ok(
-        CategoryResponse::from_model(updated),
+    Ok(Json(ApiResponse::ok(
+        CategoryResponse::from_model(&updated),
         "Category updated",
-    ))
+    )))
 }
 
 /// `DELETE /api/products/categories/:id` — delete a category.
-async fn remove(State(ctx): State<AppContext>, Path(id): Path<Uuid>) -> Result<Response> {
-    let existing = categories::Entity::find_by_id(id)
-        .one(&ctx.db)
-        .await
-        .map_err(|_| Error::InternalServerError)?;
+async fn remove(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<()>>, ApiError> {
+    let existing = state.db.find_category(&id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to find category for delete");
+        ApiError::Internal(anyhow::anyhow!("Failed to find category"))
+    })?;
 
     if existing.is_none() {
-        return format::json(ApiResponse::<()>::not_found("Category"));
+        return Ok(Json(ApiResponse::not_found("Category")));
     }
 
     // Check for child categories
-    let children = categories::Entity::find()
-        .filter(categories::Column::ParentId.eq(id))
-        .count(&ctx.db)
-        .await
-        .map_err(|_| Error::InternalServerError)?;
+    let children = state.db.count_child_categories(&id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to count child categories");
+        ApiError::Internal(anyhow::anyhow!("Failed to count child categories"))
+    })?;
 
     if children > 0 {
-        return format::json(ApiResponse::<()>::error(
+        return Ok(Json(ApiResponse::error(
             "has_children",
             "Cannot delete a category that has child categories",
-        ));
+        )));
     }
 
-    categories::Entity::delete_by_id(id)
-        .exec(&ctx.db)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to delete category");
-            Error::InternalServerError
-        })?;
+    state.db.delete_category(&id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to delete category");
+        ApiError::Internal(anyhow::anyhow!("Failed to delete category"))
+    })?;
 
-    format::json(ApiResponse::<()>::ok((), "Category deleted"))
+    Ok(Json(ApiResponse::ok((), "Category deleted")))
 }

@@ -1,29 +1,25 @@
 //! Role management controller.
 
-use axum::extract::Extension;
-use loco_rs::prelude::*;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    Set,
+use axum::{
+    extract::{Extension, Path, Query, State},
+    routing::get,
+    Json, Router,
 };
-use uuid::Uuid;
 
-use crate::models::_entities::{roles, users};
+use crate::app::AppState;
+use crate::error::ApiError;
 use crate::views::{
     role::{CreateRoleRequest, PermissionsResponse, RoleResponse, UpdateRoleRequest},
     ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
-/// Registers all `/api/roles` routes.
-pub fn routes() -> Routes {
-    Routes::new()
-        .prefix("api/roles")
-        .add("/", get(list))
-        .add("/", post(create))
-        .add("/permissions", get(permissions))
-        .add("/:id", get(show))
-        .add("/:id", patch(update))
-        .add("/:id", delete(remove))
+/// Registers all `/roles` routes (nested under `/api` by the top-level
+/// router).
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/roles", get(list).post(create))
+        .route("/roles/permissions", get(permissions))
+        .route("/roles/{id}", get(show).patch(update).delete(remove))
 }
 
 /// All known permission strings for the Sakaloka platform.
@@ -43,48 +39,41 @@ const ALL_PERMISSIONS: &[&str] = &[
 
 /// `GET /api/roles` — list roles with pagination and search.
 async fn list(
-    State(ctx): State<AppContext>,
+    State(state): State<AppState>,
     Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
-) -> Result<Response> {
+) -> Result<Json<PaginatedResponse<RoleResponse>>, ApiError> {
     let page = params.page();
     let limit = params.limit();
+    let start = (page - 1) * limit;
 
-    let mut condition = Condition::all();
-    if let Some(ref search) = params.search {
-        if !search.is_empty() {
-            condition = condition.add(roles::Column::Name.contains(search));
-        }
-    }
-
-    let total = roles::Entity::find()
-        .filter(condition.clone())
-        .count(&ctx.db)
+    let total = state
+        .db
+        .count_roles(params.search.as_deref())
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to count roles");
-            Error::InternalServerError
+            ApiError::Internal(anyhow::anyhow!("Failed to count roles"))
         })?;
 
-    let mut query = roles::Entity::find().filter(condition);
-    query = match params.sort_by.as_deref() {
-        Some("name") if params.is_desc() => query.order_by_desc(roles::Column::Name),
-        Some("name") => query.order_by_asc(roles::Column::Name),
-        _ => query.order_by_desc(roles::Column::CreatedAt),
-    };
-
-    let items = query
-        .paginate(&ctx.db, limit)
-        .fetch_page(params.offset())
+    let items = state
+        .db
+        .list_roles(
+            limit,
+            start,
+            params.search.as_deref(),
+            params.sort_by.as_deref().unwrap_or("created_at"),
+            params.is_desc(),
+        )
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to list roles");
-            Error::InternalServerError
+            ApiError::Internal(anyhow::anyhow!("Failed to list roles"))
         })?;
 
-    let responses: Vec<RoleResponse> = items.into_iter().map(RoleResponse::from_model).collect();
+    let responses: Vec<RoleResponse> = items.iter().map(RoleResponse::from_model).collect();
 
-    format::json(PaginatedResponse {
+    Ok(Json(PaginatedResponse {
         success: true,
         message: "Roles retrieved".to_string(),
         data: PaginatedData {
@@ -92,186 +81,177 @@ async fn list(
             pagination: PageMeta::new(page, limit, total),
             filters: ListFilters::from_params(&params),
         },
-    })
+    }))
 }
 
 /// `GET /api/roles/permissions` — list all available permissions.
-async fn permissions() -> Result<Response> {
+async fn permissions() -> Result<Json<ApiResponse<PermissionsResponse>>, ApiError> {
     let perms = ALL_PERMISSIONS.iter().map(|s| s.to_string()).collect();
 
-    format::json(ApiResponse::ok(
+    Ok(Json(ApiResponse::ok(
         PermissionsResponse { permissions: perms },
         "Permissions retrieved",
-    ))
+    )))
 }
 
 /// `GET /api/roles/:id` — fetch a single role.
-async fn show(State(ctx): State<AppContext>, Path(id): Path<Uuid>) -> Result<Response> {
-    let role = roles::Entity::find_by_id(id)
-        .one(&ctx.db)
-        .await
-        .map_err(|_| Error::InternalServerError)?;
+async fn show(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<RoleResponse>>, ApiError> {
+    let role = state.db.find_role(&id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to find role");
+        ApiError::Internal(anyhow::anyhow!("Failed to find role"))
+    })?;
 
     match role {
-        Some(r) => format::json(ApiResponse::ok(
-            RoleResponse::from_model(r),
+        Some(r) => Ok(Json(ApiResponse::ok(
+            RoleResponse::from_model(&r),
             "Role retrieved",
-        )),
-        None => format::json(ApiResponse::<()>::not_found("Role")),
+        ))),
+        None => Ok(Json(ApiResponse::not_found("Role"))),
     }
 }
 
 /// `POST /api/roles` — create a new role.
 async fn create(
-    State(ctx): State<AppContext>,
+    State(state): State<AppState>,
     Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Json(payload): Json<CreateRoleRequest>,
-) -> Result<Response> {
+) -> Result<Json<ApiResponse<RoleResponse>>, ApiError> {
     if payload.name.trim().is_empty() {
-        return format::json(ApiResponse::<()>::validation(vec![
+        return Ok(Json(ApiResponse::validation(vec![
             "name is required".to_string()
-        ]));
+        ])));
     }
 
     // Determine organization from caller
-    let caller_id: Uuid = claims.sub.parse().map_err(|_| Error::InternalServerError)?;
-    let caller = users::Entity::find_by_id(caller_id)
-        .one(&ctx.db)
+    let caller = state
+        .db
+        .find_user_by_id(&claims.sub)
         .await
-        .map_err(|_| Error::InternalServerError)?
-        .ok_or(Error::InternalServerError)?;
+        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to find caller")))?
+        .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Caller not found")))?;
+
+    let org_id = caller
+        .organization_id
+        .as_ref()
+        .map(crate::views::record_id_to_string)
+        .unwrap_or_default();
 
     // Check for duplicate name within the organization
-    let existing = roles::Entity::find()
-        .filter(roles::Column::Name.eq(&payload.name))
-        .filter(roles::Column::OrganizationId.eq(caller.organization_id))
-        .one(&ctx.db)
+    let existing = state
+        .db
+        .find_role_by_name_and_org(&payload.name, &org_id)
         .await
-        .map_err(|_| Error::InternalServerError)?;
+        .map_err(|_| ApiError::Internal(anyhow::anyhow!("DB error")))?;
 
     if existing.is_some() {
-        return format::json(ApiResponse::<()>::error(
+        return Ok(Json(ApiResponse::error(
             "duplicate_role",
             "A role with this name already exists in the organization",
-        ));
+        )));
     }
 
-    let now = chrono::Utc::now().fixed_offset();
-    let id = Uuid::new_v4();
+    let result = state
+        .db
+        .create_role(&payload.name, &org_id, &payload.permissions, false)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to create role");
+            ApiError::Internal(anyhow::anyhow!("Failed to create role"))
+        })?;
 
-    let model = roles::ActiveModel {
-        id: Set(id),
-        name: Set(payload.name),
-        organization_id: Set(caller.organization_id),
-        is_system_role: Set(false),
-        permissions: Set(payload.permissions),
-        created_by: Set(Some(caller_id)),
-        is_active: Set(payload.is_active.unwrap_or(true)),
-        created_at: Set(now),
-        updated_at: Set(now),
-    };
-
-    let result = model.insert(&ctx.db).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to create role");
-        Error::InternalServerError
-    })?;
-
-    format::json(ApiResponse::created(
-        RoleResponse::from_model(result),
+    Ok(Json(ApiResponse::created(
+        RoleResponse::from_model(&result),
         "Role created",
-    ))
+    )))
 }
 
 /// `PATCH /api/roles/:id` — update an existing role.
 async fn update(
-    State(ctx): State<AppContext>,
-    Path(id): Path<Uuid>,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
     Json(payload): Json<UpdateRoleRequest>,
-) -> Result<Response> {
-    let existing = roles::Entity::find_by_id(id)
-        .one(&ctx.db)
-        .await
-        .map_err(|_| Error::InternalServerError)?;
+) -> Result<Json<ApiResponse<RoleResponse>>, ApiError> {
+    let existing = state.db.find_role(&id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to find role for update");
+        ApiError::Internal(anyhow::anyhow!("Failed to find role"))
+    })?;
 
     let existing = match existing {
         Some(r) => r,
-        None => return format::json(ApiResponse::<()>::not_found("Role")),
+        None => return Ok(Json(ApiResponse::not_found("Role"))),
     };
 
     // Prevent modification of system roles
     if existing.is_system_role {
-        return format::json(ApiResponse::<()>::error(
+        return Ok(Json(ApiResponse::error(
             "system_role",
             "System roles cannot be modified",
-        ));
+        )));
     }
 
-    let mut active: roles::ActiveModel = existing.into();
+    let updated = state
+        .db
+        .update_role(
+            &id,
+            payload.name.as_deref(),
+            payload.permissions.as_ref(),
+            payload.is_active,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to update role");
+            ApiError::Internal(anyhow::anyhow!("Failed to update role"))
+        })?;
 
-    if let Some(name) = payload.name {
-        active.name = Set(name);
-    }
-    if let Some(permissions) = payload.permissions {
-        active.permissions = Set(permissions);
-    }
-    if let Some(is_active) = payload.is_active {
-        active.is_active = Set(is_active);
-    }
-
-    active.updated_at = Set(chrono::Utc::now().fixed_offset());
-
-    let updated = active.update(&ctx.db).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to update role");
-        Error::InternalServerError
-    })?;
-
-    format::json(ApiResponse::ok(
-        RoleResponse::from_model(updated),
+    Ok(Json(ApiResponse::ok(
+        RoleResponse::from_model(&updated),
         "Role updated",
-    ))
+    )))
 }
 
 /// `DELETE /api/roles/:id` — delete a role.
-async fn remove(State(ctx): State<AppContext>, Path(id): Path<Uuid>) -> Result<Response> {
-    let existing = roles::Entity::find_by_id(id)
-        .one(&ctx.db)
-        .await
-        .map_err(|_| Error::InternalServerError)?;
+async fn remove(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<()>>, ApiError> {
+    let existing = state.db.find_role(&id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to find role for delete");
+        ApiError::Internal(anyhow::anyhow!("Failed to find role"))
+    })?;
 
     let existing = match existing {
         Some(r) => r,
-        None => return format::json(ApiResponse::<()>::not_found("Role")),
+        None => return Ok(Json(ApiResponse::not_found("Role"))),
     };
 
     // Prevent deletion of system roles
     if existing.is_system_role {
-        return format::json(ApiResponse::<()>::error(
+        return Ok(Json(ApiResponse::error(
             "system_role",
             "System roles cannot be deleted",
-        ));
+        )));
     }
 
     // Check for users assigned to this role
-    let assigned_users = users::Entity::find()
-        .filter(users::Column::RoleId.eq(id))
-        .count(&ctx.db)
-        .await
-        .map_err(|_| Error::InternalServerError)?;
+    let assigned_users = state.db.count_users_with_role(&id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to count users with role");
+        ApiError::Internal(anyhow::anyhow!("Failed to count users with role"))
+    })?;
 
     if assigned_users > 0 {
-        return format::json(ApiResponse::<()>::error(
+        return Ok(Json(ApiResponse::error(
             "role_in_use",
             "Cannot delete a role that is assigned to users",
-        ));
+        )));
     }
 
-    roles::Entity::delete_by_id(id)
-        .exec(&ctx.db)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to delete role");
-            Error::InternalServerError
-        })?;
+    state.db.delete_role(&id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to delete role");
+        ApiError::Internal(anyhow::anyhow!("Failed to delete role"))
+    })?;
 
-    format::json(ApiResponse::<()>::ok((), "Role deleted"))
+    Ok(Json(ApiResponse::ok((), "Role deleted")))
 }

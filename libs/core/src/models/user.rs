@@ -9,14 +9,25 @@ pub struct User {
     /// The record ID (e.g. `user:01J...`).
     #[schema(value_type = String)]
     pub id: Thing,
-    /// The unique username.
-    pub username: String,
+    /// The unique username (optional).
+    pub username: Option<String>,
     /// The unique email address.
-    pub email_address: String,
+    pub email: String,
+    /// Full display name.
+    pub full_name: Option<String>,
     /// The Argon2id password hash.
     pub password_hash: String,
-    /// The user's role: admin, editor, or viewer.
-    pub role: String,
+    /// Link to the user's organization.
+    #[schema(value_type = Option<String>)]
+    pub organization_id: Option<Thing>,
+    /// Link to the user's role.
+    #[schema(value_type = Option<String>)]
+    pub role_id: Option<Thing>,
+    /// Whether the account is active.
+    pub is_active: bool,
+    /// Last login timestamp.
+    #[schema(value_type = Option<String>)]
+    pub last_login_at: Option<Datetime>,
     /// Creation timestamp.
     #[schema(value_type = String)]
     pub created_at: Datetime,

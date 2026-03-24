@@ -1,80 +1,90 @@
-//! Loco application hooks — lifecycle and route registration.
+//! Application state and router construction.
 
-use async_trait::async_trait;
-use loco_rs::{
-    app::{AppContext, Hooks, Initializer},
-    bgworker::Queue,
-    boot::{create_app, BootResult, StartMode},
-    config::Config,
-    controller::AppRoutes,
-    environment::Environment,
-    task::Tasks,
-    Result,
-};
-use migration::Migrator;
-use std::path::Path;
+use std::sync::Arc;
+
+use axum::http::Method;
+use axum::Router;
+use tower_http::cors::{Any, CorsLayer};
+use tower_http::trace::TraceLayer;
 
 use crate::controllers;
 
-/// The Sakaloka API application.
-pub struct App;
+/// Shared application state injected into every handler.
+#[derive(Clone)]
+pub struct AppState {
+    /// SurrealDB client (Jupiter).
+    pub db: sakaloka_data::surreal::SurrealClient,
+    /// JWT signing/verification keys.
+    pub jwt_keys: Arc<sakaloka_secure::jwt::JwtKeys>,
+}
 
-#[async_trait]
-impl Hooks for App {
-    fn app_name() -> &'static str {
-        env!("CARGO_CRATE_NAME")
+/// Builds the top-level Axum router with all routes and middleware.
+pub fn router(state: AppState) -> Router {
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers(Any)
+        .max_age(std::time::Duration::from_secs(3600));
+
+    let api_routes = Router::new()
+        .merge(controllers::auth::routes())
+        .merge(controllers::product::routes())
+        .merge(controllers::brand::routes())
+        .merge(controllers::category::routes())
+        .merge(controllers::user::routes())
+        .merge(controllers::role::routes())
+        .merge(controllers::organization::routes())
+        .merge(controllers::pos::routes())
+        .merge(controllers::stock::routes());
+
+    Router::new()
+        .route("/health", axum::routing::get(health))
+        .nest("/api", api_routes)
+        .layer(TraceLayer::new_for_http())
+        .layer(cors)
+        .with_state(state)
+}
+
+/// Health-check endpoint.
+async fn health() -> &'static str {
+    "ok"
+}
+
+/// Applies SurrealQL migrations from the `libs/data/surql/` directory.
+///
+/// # Errors
+///
+/// Returns an error if any migration file cannot be read or executed.
+pub async fn run_migrations(db: &sakaloka_data::surreal::SurrealClient) -> anyhow::Result<()> {
+    let surql_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("libs")
+        .join("data")
+        .join("surql");
+
+    let mut entries: Vec<_> = std::fs::read_dir(&surql_dir)?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "surql"))
+        .collect();
+
+    entries.sort_by_key(|e| e.file_name());
+
+    for entry in entries {
+        let path = entry.path();
+        let name = path.file_name().unwrap_or_default().to_string_lossy();
+        let sql = std::fs::read_to_string(&path)?;
+        tracing::info!(file = %name, "applying migration");
+        db.execute_raw(&sql).await?;
     }
 
-    fn app_version() -> String {
-        format!(
-            "{} ({})",
-            env!("CARGO_PKG_VERSION"),
-            option_env!("BUILD_SHA")
-                .or(option_env!("GITHUB_SHA"))
-                .unwrap_or("dev"),
-        )
-    }
-
-    async fn boot(
-        mode: StartMode,
-        environment: &Environment,
-        config: Config,
-    ) -> Result<BootResult> {
-        create_app::<Self, Migrator>(mode, environment, config).await
-    }
-
-    fn routes(_ctx: &AppContext) -> AppRoutes {
-        AppRoutes::with_default_routes()
-            .add_route(controllers::auth::routes())
-            .add_route(controllers::product::routes())
-            .add_route(controllers::brand::routes())
-            .add_route(controllers::category::routes())
-            .add_route(controllers::user::routes())
-            .add_route(controllers::role::routes())
-            .add_route(controllers::organization::routes())
-            .add_route(controllers::pos::routes())
-            .add_route(controllers::stock::routes())
-    }
-
-    async fn connect_workers(_ctx: &AppContext, _queue: &Queue) -> Result<()> {
-        Ok(())
-    }
-
-    fn register_tasks(_tasks: &mut Tasks) {}
-
-    async fn initializers(_ctx: &AppContext) -> Result<Vec<Box<dyn Initializer>>> {
-        Ok(vec![])
-    }
-
-    async fn after_context(ctx: AppContext) -> Result<AppContext> {
-        Ok(ctx)
-    }
-
-    async fn truncate(_ctx: &AppContext) -> Result<()> {
-        Ok(())
-    }
-
-    async fn seed(_ctx: &AppContext, _base: &Path) -> Result<()> {
-        Ok(())
-    }
+    tracing::info!("all migrations applied");
+    Ok(())
 }

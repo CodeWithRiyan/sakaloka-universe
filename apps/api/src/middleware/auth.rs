@@ -5,15 +5,15 @@
 //! for downstream handlers and the `RequireScope` guard.
 
 use axum::{
-    extract::Request,
+    extract::{Request, State},
     http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
     Json,
 };
-use loco_rs::app::AppContext;
-use sakaloka_secure::jwt::{user_claims::validate_user_token, JwtKeys};
-use std::sync::Arc;
+use sakaloka_secure::jwt::user_claims::validate_user_token;
+
+use crate::app::AppState;
 
 /// Middleware to extract the `Bearer` token, validate the User JWT, and insert
 /// [`sakaloka_secure::jwt::user_claims::UserClaims`] into the request
@@ -24,7 +24,7 @@ use std::sync::Arc;
 /// Returns `401 Unauthorized` if the header is missing, malformed, or if the
 /// JWT fails validation.
 pub async fn auth_middleware(
-    _ctx: axum::extract::State<AppContext>,
+    State(state): State<AppState>,
     mut req: Request,
     next: Next,
 ) -> Response {
@@ -48,26 +48,7 @@ pub async fn auth_middleware(
         }
     };
 
-    // Load JWT keys from environment.
-    // In production the keys are initialised once during boot; here we
-    // reconstruct from env so the middleware is self-contained.
-    let keys = match JwtKeys::from_env() {
-        Ok(k) => Arc::new(k),
-        Err(e) => {
-            tracing::error!(error = %e, "Failed to load JWT keys");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "success": false,
-                    "error": "internal_error",
-                    "message": "Server configuration error"
-                })),
-            )
-                .into_response();
-        }
-    };
-
-    match validate_user_token(&keys, token) {
+    match validate_user_token(&state.jwt_keys, token) {
         Ok(claims) => {
             req.extensions_mut().insert(claims);
             next.run(req).await

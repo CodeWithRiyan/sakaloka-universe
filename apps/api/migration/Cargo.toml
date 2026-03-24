@@ -1,9 +1,0 @@
-[package]
-name = "migration"
-version = "0.1.0"
-edition = "2021"
-description = "Sakaloka API database migrations (SeaORM)"
-publish = false
-
-[dependencies]
-sea-orm-migration = { version = "1.1" }

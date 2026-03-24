@@ -1,80 +1,63 @@
 //! User management controller.
 
-use axum::extract::Extension;
-use loco_rs::prelude::*;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    Set,
+use axum::{
+    extract::{Extension, Path, Query, State},
+    routing::get,
+    Json, Router,
 };
-use uuid::Uuid;
 
-use crate::models::_entities::users;
+use crate::app::AppState;
+use crate::error::ApiError;
 use crate::views::{
     user::{CreateUserRequest, UpdateUserRequest, UserResponse},
     ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
-/// Registers all `/api/users` routes.
-pub fn routes() -> Routes {
-    Routes::new()
-        .prefix("api/users")
-        .add("/", get(list))
-        .add("/", post(create))
-        .add("/:id", get(show))
-        .add("/:id", patch(update))
-        .add("/:id", delete(remove))
+/// Registers all `/users` routes (nested under `/api` by the top-level
+/// router).
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/users", get(list).post(create))
+        .route("/users/{id}", get(show).patch(update).delete(remove))
 }
 
 /// `GET /api/users` — list users with pagination and search.
 async fn list(
-    State(ctx): State<AppContext>,
+    State(state): State<AppState>,
     Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
-) -> Result<Response> {
+) -> Result<Json<PaginatedResponse<UserResponse>>, ApiError> {
     let page = params.page();
     let limit = params.limit();
+    let start = (page - 1) * limit;
 
-    let mut condition = Condition::all();
-    if let Some(ref search) = params.search {
-        if !search.is_empty() {
-            condition = condition.add(
-                Condition::any()
-                    .add(users::Column::Email.contains(search))
-                    .add(users::Column::FullName.contains(search)),
-            );
-        }
-    }
-
-    let total = users::Entity::find()
-        .filter(condition.clone())
-        .count(&ctx.db)
+    let total = state
+        .db
+        .count_users(params.search.as_deref())
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to count users");
-            Error::InternalServerError
+            ApiError::Internal(anyhow::anyhow!("Failed to count users"))
         })?;
 
-    let mut query = users::Entity::find().filter(condition);
-    query = match params.sort_by.as_deref() {
-        Some("email") if params.is_desc() => query.order_by_desc(users::Column::Email),
-        Some("email") => query.order_by_asc(users::Column::Email),
-        Some("full_name") if params.is_desc() => query.order_by_desc(users::Column::FullName),
-        Some("full_name") => query.order_by_asc(users::Column::FullName),
-        _ => query.order_by_desc(users::Column::CreatedAt),
-    };
-
-    let items = query
-        .paginate(&ctx.db, limit)
-        .fetch_page(params.offset())
+    let items = state
+        .db
+        .list_users(
+            limit,
+            start,
+            params.search.as_deref(),
+            params.sort_by.as_deref().unwrap_or("created_at"),
+            params.is_desc(),
+        )
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to list users");
-            Error::InternalServerError
+            ApiError::Internal(anyhow::anyhow!("Failed to list users"))
         })?;
 
-    let responses: Vec<UserResponse> = items.into_iter().map(UserResponse::from_model).collect();
+    let responses: Vec<UserResponse> = items.iter().map(UserResponse::from_model).collect();
 
-    format::json(PaginatedResponse {
+    Ok(Json(PaginatedResponse {
         success: true,
         message: "Users retrieved".to_string(),
         data: PaginatedData {
@@ -82,31 +65,34 @@ async fn list(
             pagination: PageMeta::new(page, limit, total),
             filters: ListFilters::from_params(&params),
         },
-    })
+    }))
 }
 
 /// `GET /api/users/:id` — fetch a single user.
-async fn show(State(ctx): State<AppContext>, Path(id): Path<Uuid>) -> Result<Response> {
-    let user = users::Entity::find_by_id(id)
-        .one(&ctx.db)
-        .await
-        .map_err(|_| Error::InternalServerError)?;
+async fn show(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<UserResponse>>, ApiError> {
+    let user = state.db.find_user_by_id(&id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to find user");
+        ApiError::Internal(anyhow::anyhow!("Failed to find user"))
+    })?;
 
     match user {
-        Some(u) => format::json(ApiResponse::ok(
-            UserResponse::from_model(u),
+        Some(u) => Ok(Json(ApiResponse::ok(
+            UserResponse::from_model(&u),
             "User retrieved",
-        )),
-        None => format::json(ApiResponse::<()>::not_found("User")),
+        ))),
+        None => Ok(Json(ApiResponse::not_found("User"))),
     }
 }
 
 /// `POST /api/users` — create a new user within the current organization.
 async fn create(
-    State(ctx): State<AppContext>,
+    State(state): State<AppState>,
     Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Json(payload): Json<CreateUserRequest>,
-) -> Result<Response> {
+) -> Result<Json<ApiResponse<UserResponse>>, ApiError> {
     // Validate required fields
     let mut errors = Vec::new();
     if payload.email.trim().is_empty() {
@@ -119,167 +105,167 @@ async fn create(
         errors.push("password is required".to_string());
     }
     if !errors.is_empty() {
-        return format::json(ApiResponse::<()>::validation(errors));
+        return Ok(Json(ApiResponse::validation(errors)));
     }
 
     // Check for duplicate email
-    let existing = users::Entity::find()
-        .filter(users::Column::Email.eq(&payload.email))
-        .one(&ctx.db)
+    let existing = state
+        .db
+        .find_user_by_email(&payload.email)
         .await
-        .map_err(|_| Error::InternalServerError)?;
+        .map_err(|_| ApiError::Internal(anyhow::anyhow!("DB error")))?;
 
     if existing.is_some() {
-        return format::json(ApiResponse::<()>::error(
+        return Ok(Json(ApiResponse::error(
             "email_taken",
             "A user with this email already exists",
-        ));
+        )));
     }
 
     // Hash password
     let pw = sakaloka_secure::newtypes::Password::new(&payload.password).map_err(|e| {
         tracing::warn!(error = %e, "Password validation failed");
-        Error::BadRequest("Password does not meet complexity requirements".to_string())
+        ApiError::BadRequest("Password does not meet complexity requirements".to_string())
     })?;
 
-    let password_hash =
-        sakaloka_secure::argon2::hash_password(&pw).map_err(|_| Error::InternalServerError)?;
+    let password_hash = sakaloka_secure::argon2::hash_password(&pw)
+        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to hash password")))?;
 
     // Determine organization from the caller's context
-    let caller_id: Uuid = claims.sub.parse().map_err(|_| Error::InternalServerError)?;
-    let caller = users::Entity::find_by_id(caller_id)
-        .one(&ctx.db)
+    let caller = state
+        .db
+        .find_user_by_id(&claims.sub)
         .await
-        .map_err(|_| Error::InternalServerError)?
-        .ok_or(Error::InternalServerError)?;
+        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to find caller")))?
+        .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Caller not found")))?;
 
-    let now = chrono::Utc::now().fixed_offset();
-    let id = Uuid::new_v4();
+    let org_id = caller
+        .organization_id
+        .as_ref()
+        .map(crate::views::record_id_to_string)
+        .unwrap_or_default();
 
-    let model = users::ActiveModel {
-        id: Set(id),
-        email: Set(payload.email),
-        full_name: Set(payload.full_name),
-        password_hash: Set(password_hash),
-        organization_id: Set(caller.organization_id),
-        role_id: Set(payload.role_id),
-        is_active: Set(payload.is_active.unwrap_or(true)),
-        last_login_at: Set(None),
-        created_at: Set(now),
-        updated_at: Set(now),
-    };
+    let result = state
+        .db
+        .create_user(
+            &payload.email,
+            &payload.full_name,
+            &password_hash,
+            &org_id,
+            &payload.role_id,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to create user");
+            ApiError::Internal(anyhow::anyhow!("Failed to create user"))
+        })?;
 
-    let result = model.insert(&ctx.db).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to create user");
-        Error::InternalServerError
-    })?;
-
-    format::json(ApiResponse::created(
-        UserResponse::from_model(result),
+    Ok(Json(ApiResponse::created(
+        UserResponse::from_model(&result),
         "User created",
-    ))
+    )))
 }
 
 /// `PATCH /api/users/:id` — update an existing user.
 async fn update(
-    State(ctx): State<AppContext>,
-    Path(id): Path<Uuid>,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
     Json(payload): Json<UpdateUserRequest>,
-) -> Result<Response> {
-    let existing = users::Entity::find_by_id(id)
-        .one(&ctx.db)
-        .await
-        .map_err(|_| Error::InternalServerError)?;
-
-    let existing = match existing {
-        Some(u) => u,
-        None => return format::json(ApiResponse::<()>::not_found("User")),
-    };
-
-    let mut active: users::ActiveModel = existing.into();
-
-    if let Some(email) = payload.email {
-        // Check uniqueness
-        let dup = users::Entity::find()
-            .filter(users::Column::Email.eq(&email))
-            .filter(users::Column::Id.ne(id))
-            .one(&ctx.db)
-            .await
-            .map_err(|_| Error::InternalServerError)?;
-        if dup.is_some() {
-            return format::json(ApiResponse::<()>::error(
-                "email_taken",
-                "A user with this email already exists",
-            ));
-        }
-        active.email = Set(email);
-    }
-    if let Some(full_name) = payload.full_name {
-        active.full_name = Set(full_name);
-    }
-    if let Some(password) = payload.password {
-        let pw = sakaloka_secure::newtypes::Password::new(&password).map_err(|_| {
-            Error::BadRequest("Password does not meet complexity requirements".to_string())
-        })?;
-        let hash =
-            sakaloka_secure::argon2::hash_password(&pw).map_err(|_| Error::InternalServerError)?;
-        active.password_hash = Set(hash);
-    }
-    if let Some(role_id) = payload.role_id {
-        active.role_id = Set(role_id);
-    }
-    if let Some(is_active) = payload.is_active {
-        active.is_active = Set(is_active);
-    }
-
-    active.updated_at = Set(chrono::Utc::now().fixed_offset());
-
-    let updated = active.update(&ctx.db).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to update user");
-        Error::InternalServerError
+) -> Result<Json<ApiResponse<UserResponse>>, ApiError> {
+    let existing = state.db.find_user_by_id(&id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to find user for update");
+        ApiError::Internal(anyhow::anyhow!("Failed to find user"))
     })?;
 
-    format::json(ApiResponse::ok(
-        UserResponse::from_model(updated),
+    if existing.is_none() {
+        return Ok(Json(ApiResponse::not_found("User")));
+    }
+
+    // Check email uniqueness if being changed
+    if let Some(ref email) = payload.email {
+        let dup = state
+            .db
+            .find_user_by_email(email)
+            .await
+            .map_err(|_| ApiError::Internal(anyhow::anyhow!("DB error")))?;
+        if let Some(ref dup_user) = dup {
+            let dup_id = crate::views::record_id_to_string(&dup_user.id);
+            if dup_id != id {
+                return Ok(Json(ApiResponse::error(
+                    "email_taken",
+                    "A user with this email already exists",
+                )));
+            }
+        }
+    }
+
+    // Hash new password if provided
+    let password_hash = if let Some(ref password) = payload.password {
+        let pw = sakaloka_secure::newtypes::Password::new(password).map_err(|_| {
+            ApiError::BadRequest("Password does not meet complexity requirements".to_string())
+        })?;
+        Some(
+            sakaloka_secure::argon2::hash_password(&pw)
+                .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to hash password")))?,
+        )
+    } else {
+        None
+    };
+
+    let updated = state
+        .db
+        .update_user(
+            &id,
+            payload.email.as_deref(),
+            payload.full_name.as_deref(),
+            password_hash.as_deref(),
+            payload.role_id.as_deref(),
+            payload.is_active,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to update user");
+            ApiError::Internal(anyhow::anyhow!("Failed to update user"))
+        })?;
+
+    Ok(Json(ApiResponse::ok(
+        UserResponse::from_model(&updated),
         "User updated",
-    ))
+    )))
 }
 
 /// `DELETE /api/users/:id` — deactivate a user.
 async fn remove(
-    State(ctx): State<AppContext>,
+    State(state): State<AppState>,
     Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
-    Path(id): Path<Uuid>,
-) -> Result<Response> {
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<()>>, ApiError> {
     // Prevent self-deletion
-    let caller_id: Uuid = claims.sub.parse().map_err(|_| Error::InternalServerError)?;
-
-    if caller_id == id {
-        return format::json(ApiResponse::<()>::error(
+    if claims.sub == id {
+        return Ok(Json(ApiResponse::error(
             "self_deletion",
             "You cannot delete your own account",
-        ));
+        )));
     }
 
-    let existing = users::Entity::find_by_id(id)
-        .one(&ctx.db)
-        .await
-        .map_err(|_| Error::InternalServerError)?;
-
-    let existing = match existing {
-        Some(u) => u,
-        None => return format::json(ApiResponse::<()>::not_found("User")),
-    };
-
-    // Soft-deactivate instead of hard delete
-    let mut active: users::ActiveModel = existing.into();
-    active.is_active = Set(false);
-    active.updated_at = Set(chrono::Utc::now().fixed_offset());
-
-    active.update(&ctx.db).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to deactivate user");
-        Error::InternalServerError
+    let existing = state.db.find_user_by_id(&id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to find user for deactivation");
+        ApiError::Internal(anyhow::anyhow!("Failed to find user"))
     })?;
 
-    format::json(ApiResponse::<()>::ok((), "User deactivated"))
+    if existing.is_none() {
+        return Ok(Json(ApiResponse::not_found("User")));
+    }
+
+    // Soft-deactivate instead of hard delete
+    state
+        .db
+        .update_user(&id, None, None, None, None, Some(false))
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to deactivate user");
+            ApiError::Internal(anyhow::anyhow!("Failed to deactivate user"))
+        })?;
+
+    Ok(Json(ApiResponse::ok((), "User deactivated")))
 }

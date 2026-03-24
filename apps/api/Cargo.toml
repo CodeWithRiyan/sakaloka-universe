@@ -2,7 +2,7 @@
 name = "sakaloka-api"
 version = "0.1.0"
 edition = "2021"
-description = "Sakaloka-Universe — Earth: Loco.rs REST API server"
+description = "Sakaloka-Universe — Earth: Axum REST API server with SurrealDB"
 license = "MIT"
 
 [[bin]]
@@ -10,45 +10,28 @@ name = "sakaloka-api"
 path = "src/main.rs"
 
 [[bin]]
-name = "sakaloka-api-cli"
-path = "src/bin/tool.rs"
-
-[[bin]]
 name = "openapi"
 path = "src/bin/openapi.rs"
 
 [dependencies]
-# Loco framework
-loco-rs = { workspace = true }
-migration = { path = "migration" }
-
 # Workspace shared deps
 tokio        = { workspace = true }
 serde        = { workspace = true }
 serde_json   = { workspace = true }
 anyhow       = { workspace = true }
+dotenvy      = { workspace = true }
 tracing      = { workspace = true }
+tracing-subscriber = { workspace = true }
 axum         = { workspace = true }
 sha2         = { workspace = true }
 chrono       = { workspace = true }
 uuid         = { workspace = true }
+surrealdb    = { workspace = true }
 
 # Internal crates
 sakaloka-core   = { workspace = true }
 sakaloka-secure = { workspace = true }
-
-# SeaORM (Loco uses this for DB)
-sea-orm = { version = "1.1", features = [
-    "sqlx-postgres",
-    "runtime-tokio-rustls",
-    "macros",
-    "with-chrono",
-    "with-json",
-    "with-uuid",
-] }
-
-# Async trait for Loco hooks
-async-trait = "0.1"
+sakaloka-data   = { workspace = true }
 
 # Axum extras
 tower       = "0.5"
@@ -63,6 +46,4 @@ utoipa-swagger-ui = { version = "9", features = ["axum"] }
 argon2 = { workspace = true }
 
 [dev-dependencies]
-loco-rs = { workspace = true, features = ["testing"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-serial_test = "3"

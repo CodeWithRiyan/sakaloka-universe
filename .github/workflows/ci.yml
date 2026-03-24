@@ -1,4 +1,4 @@
-name: "🌌 Sakaloka — Iron Curtain CI"
+name: "Sakaloka — Iron Curtain CI"
 
 on:
   push:
@@ -12,20 +12,16 @@ env:
 
 jobs:
   iron-curtain:
-    name: "⚔️ Iron Curtain Checks"
+    name: "Iron Curtain Checks"
     runs-on: ubuntu-latest
 
     services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: sakaloka_test
-          POSTGRES_USER: sakaloka
-          POSTGRES_PASSWORD: sakaloka_dev
+      surrealdb:
+        image: surrealdb/surrealdb:latest
         ports:
-          - 55432:5432
+          - 58000:8000
         options: >-
-          --health-cmd "pg_isready -U sakaloka"
+          --health-cmd "/surreal is-ready --log none"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -56,26 +52,28 @@ jobs:
             ${{ runner.os }}-cargo-
 
       # US-04: rustfmt check
-      - name: "📐 cargo fmt --check"
+      - name: "cargo fmt --check"
         run: cargo fmt --all -- --check
 
       # US-04: Clippy with deny warnings (Iron Curtain enforcement)
-      - name: "🔍 cargo clippy (deny warnings)"
+      - name: "cargo clippy (deny warnings)"
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       # US-02: Workspace build
-      - name: "🔨 cargo build --workspace"
+      - name: "cargo build --workspace"
         run: cargo build --workspace
 
       # US-02 / AC-06: All tests including doc-tests
-      - name: "🧪 cargo test --workspace"
+      - name: "cargo test --workspace"
         run: cargo test --workspace
         env:
           SAKALOKA_JWT_SECRET: "ci-test-secret-at-least-32-chars-long!"
-          DATABASE_URL: "postgres://sakaloka:sakaloka_dev@127.0.0.1:55432/sakaloka_test"
+          SURREALDB_URL: "ws://127.0.0.1:58000"
+          SURREALDB_USER: "root"
+          SURREALDB_PASS: "root"
 
       # AC-03: 100% public API documentation
-      - name: "📚 cargo doc (deny missing_docs)"
+      - name: "cargo doc (deny missing_docs)"
         run: cargo doc --workspace --no-deps
         env:
           RUSTDOCFLAGS: "-D missing_docs"

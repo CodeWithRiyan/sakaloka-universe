@@ -1,15 +1,15 @@
-#![doc = "Sakaloka-Universe — Earth: Loco.rs REST API server library."]
+#![doc = "Sakaloka-Universe — Earth: Axum REST API server library."]
 #![deny(clippy::all)]
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
-/// Loco application hooks.
+/// Application state and router construction.
 pub mod app;
 /// HTTP controllers (route handlers).
 pub mod controllers;
+/// Unified API error type.
+pub mod error;
 /// Authentication and authorization middleware.
 pub mod middleware;
-/// SeaORM entity models.
-pub mod models;
 /// Response DTOs and view helpers.
 pub mod views;

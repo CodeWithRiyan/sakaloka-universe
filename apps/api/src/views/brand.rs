@@ -1,18 +1,16 @@
 //! Brand view DTOs.
 
-use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use uuid::Uuid;
 
-use crate::models::_entities::brands;
+use super::record_id_to_string;
 
 /// Full brand response DTO.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BrandResponse {
     /// Brand ID.
-    pub id: Uuid,
+    pub id: String,
     /// Brand name.
     pub name: String,
     /// URL-friendly slug.
@@ -23,14 +21,16 @@ pub struct BrandResponse {
     pub logo: Option<String>,
     /// Optional website URL.
     pub website: Option<String>,
+    /// Whether the brand is active.
+    pub is_active: bool,
     /// Owning organization ID.
-    pub organization_id: Uuid,
+    pub organization_id: String,
     /// User who created this brand.
-    pub created_by: Option<Uuid>,
+    pub created_by: Option<String>,
     /// Record creation timestamp.
-    pub created_at: DateTime<FixedOffset>,
+    pub created_at: String,
     /// Record last-update timestamp.
-    pub updated_at: DateTime<FixedOffset>,
+    pub updated_at: String,
 }
 
 /// Request body for creating a brand.
@@ -62,19 +62,21 @@ pub struct UpdateBrandRequest {
 }
 
 impl BrandResponse {
-    /// Convert a SeaORM brand model into a response DTO.
-    pub fn from_model(model: brands::Model) -> Self {
+    /// Convert a domain [`Brand`](sakaloka_core::models::brand::Brand)
+    /// model into a response DTO.
+    pub fn from_model(model: &sakaloka_core::models::brand::Brand) -> Self {
         Self {
-            id: model.id,
-            name: model.name,
-            slug: model.slug,
-            description: model.description,
-            logo: model.logo,
-            website: model.website,
-            organization_id: model.organization_id,
-            created_by: model.created_by,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
+            id: record_id_to_string(&model.id),
+            name: model.name.clone(),
+            slug: model.slug.clone(),
+            description: model.description.clone(),
+            logo: model.logo.clone(),
+            website: model.website.clone(),
+            is_active: model.is_active,
+            organization_id: record_id_to_string(&model.organization_id),
+            created_by: model.created_by.as_ref().map(record_id_to_string),
+            created_at: model.created_at.to_string(),
+            updated_at: model.updated_at.to_string(),
         }
     }
 }

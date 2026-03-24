@@ -1,18 +1,16 @@
 //! Organization view DTOs.
 
-use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use uuid::Uuid;
 
-use crate::models::_entities::organizations;
+use super::record_id_to_string;
 
 /// Full organization response DTO.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OrganizationResponse {
     /// Organization ID.
-    pub id: Uuid,
+    pub id: String,
     /// Organization name.
     pub name: String,
     /// Organization type.
@@ -23,7 +21,7 @@ pub struct OrganizationResponse {
     /// Optional description.
     pub description: Option<String>,
     /// Optional parent organization ID.
-    pub parent_id: Option<Uuid>,
+    pub parent_id: Option<String>,
     /// Optional contact email.
     pub email: Option<String>,
     /// Optional contact phone.
@@ -51,11 +49,11 @@ pub struct OrganizationResponse {
     /// Whether the organization is active.
     pub is_active: bool,
     /// Optional owner user ID.
-    pub owner_id: Option<Uuid>,
+    pub owner_id: Option<String>,
     /// Record creation timestamp.
-    pub created_at: DateTime<FixedOffset>,
+    pub created_at: String,
     /// Record last-update timestamp.
-    pub updated_at: DateTime<FixedOffset>,
+    pub updated_at: String,
 }
 
 /// Request body for creating an organization.
@@ -72,7 +70,7 @@ pub struct CreateOrgRequest {
     /// Optional description.
     pub description: Option<String>,
     /// Optional parent organization ID.
-    pub parent_id: Option<Uuid>,
+    pub parent_id: Option<String>,
     /// Optional contact email.
     pub email: Option<String>,
     /// Optional contact phone.
@@ -145,35 +143,37 @@ pub struct UpdateOrgRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SelectOrgRequest {
     /// ID of the organization to switch to.
-    pub organization_id: Uuid,
+    pub organization_id: String,
 }
 
 impl OrganizationResponse {
-    /// Convert a SeaORM organization model into a response DTO.
-    pub fn from_model(model: organizations::Model) -> Self {
+    /// Convert a domain
+    /// [`Organization`](sakaloka_core::models::organization::Organization)
+    /// model into a response DTO.
+    pub fn from_model(model: &sakaloka_core::models::organization::Organization) -> Self {
         Self {
-            id: model.id,
-            name: model.name,
-            org_type: model.r#type,
-            code: model.code,
-            description: model.description,
-            parent_id: model.parent_id,
-            email: model.email,
-            phone: model.phone,
-            website: model.website,
-            address: model.address,
-            city: model.city,
-            state: model.state,
-            country: model.country,
-            postal_code: model.postal_code,
-            tax_number: model.tax_number,
-            registration_number: model.registration_number,
-            logo: model.logo,
-            settings: model.settings,
+            id: record_id_to_string(&model.id),
+            name: model.name.clone(),
+            org_type: model.org_type.clone(),
+            code: model.code.clone(),
+            description: model.description.clone(),
+            parent_id: model.parent_id.as_ref().map(record_id_to_string),
+            email: model.email.clone(),
+            phone: model.phone.clone(),
+            website: model.website.clone(),
+            address: model.address.clone(),
+            city: model.city.clone(),
+            state: model.state.clone(),
+            country: model.country.clone(),
+            postal_code: model.postal_code.clone(),
+            tax_number: model.tax_number.clone(),
+            registration_number: model.registration_number.clone(),
+            logo: model.logo.clone(),
+            settings: model.settings.clone(),
             is_active: model.is_active,
-            owner_id: model.owner_id,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
+            owner_id: model.owner_id.as_ref().map(record_id_to_string),
+            created_at: model.created_at.to_string(),
+            updated_at: model.updated_at.to_string(),
         }
     }
 }

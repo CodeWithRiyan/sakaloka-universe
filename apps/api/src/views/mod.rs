@@ -15,7 +15,20 @@ pub mod stock;
 pub mod user;
 
 use serde::{Deserialize, Serialize};
+use surrealdb::types::{RecordId, RecordIdKey};
 use utoipa::{IntoParams, ToSchema};
+
+/// Extract the key portion of a SurrealDB [`RecordId`] as a string.
+///
+/// For example, `product:abc123` becomes `"abc123"`.
+pub fn record_id_to_string(id: &RecordId) -> String {
+    match &id.key {
+        RecordIdKey::String(s) => s.clone(),
+        RecordIdKey::Number(n) => n.to_string(),
+        RecordIdKey::Uuid(u) => u.to_string(),
+        other => format!("{other:?}"),
+    }
+}
 
 /// Standard API response envelope matching Venus frontend expectations.
 #[derive(Debug, Serialize, ToSchema)]
@@ -208,7 +221,7 @@ impl PaginationParams {
         self.limit.unwrap_or(10).clamp(1, 100)
     }
 
-    /// Zero-based offset for SeaORM `fetch_page`.
+    /// Zero-based offset for paginated queries.
     pub fn offset(&self) -> u64 {
         self.page().saturating_sub(1)
     }

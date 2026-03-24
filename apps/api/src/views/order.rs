@@ -1,24 +1,22 @@
 //! Order view DTOs.
 
-use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use uuid::Uuid;
 
-use crate::models::_entities::{order_items, orders};
+use super::record_id_to_string;
 
 /// Full order response DTO.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OrderResponse {
     /// Order ID.
-    pub id: Uuid,
+    pub id: String,
     /// Unique order number.
     pub order_number: String,
     /// Optional customer user ID.
-    pub customer_id: Option<Uuid>,
+    pub customer_id: Option<String>,
     /// Organization ID.
-    pub organization_id: Uuid,
+    pub organization_id: String,
     /// Order status.
     pub status: String,
     /// Order type (dine_in, takeaway, delivery).
@@ -45,13 +43,13 @@ pub struct OrderResponse {
     /// Walk-in customer name.
     pub customer_name: Option<String>,
     /// User who created this order.
-    pub created_by: Option<Uuid>,
+    pub created_by: Option<String>,
     /// User who last updated this order.
-    pub updated_by: Option<Uuid>,
+    pub updated_by: Option<String>,
     /// Record creation timestamp.
-    pub created_at: DateTime<FixedOffset>,
+    pub created_at: String,
     /// Record last-update timestamp.
-    pub updated_at: DateTime<FixedOffset>,
+    pub updated_at: String,
     /// Order items (populated when fetching a single order).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub items: Option<Vec<OrderItemResponse>>,
@@ -62,21 +60,25 @@ pub struct OrderResponse {
 #[serde(rename_all = "camelCase")]
 pub struct OrderItemResponse {
     /// Order item ID.
-    pub id: Uuid,
+    pub id: String,
     /// Parent order ID.
-    pub order_id: Uuid,
+    pub order_id: String,
     /// Product ID.
-    pub product_id: Uuid,
+    pub product_id: String,
     /// Item name snapshot.
     pub item_name: String,
     /// Quantity ordered.
     pub quantity: i32,
     /// Unit price at time of order.
     pub unit_price: i64,
+    /// Discount applied to this line item.
+    pub discount_amount: i64,
     /// Total price for this line.
     pub total_price: i64,
+    /// Optional item-level notes.
+    pub notes: Option<String>,
     /// Record creation timestamp.
-    pub created_at: DateTime<FixedOffset>,
+    pub created_at: String,
 }
 
 /// POS menu item DTO (product + pricing for the order screen).
@@ -84,7 +86,7 @@ pub struct OrderItemResponse {
 #[serde(rename_all = "camelCase")]
 pub struct MenuResponse {
     /// Product ID.
-    pub id: Uuid,
+    pub id: String,
     /// Product name.
     pub name: String,
     /// Product SKU.
@@ -94,7 +96,7 @@ pub struct MenuResponse {
     /// Image URL.
     pub image_url: Option<String>,
     /// Category ID.
-    pub category_id: Option<Uuid>,
+    pub category_id: Option<String>,
     /// Category name (if resolved).
     pub category_name: Option<String>,
     /// Whether the product is featured.
@@ -106,7 +108,7 @@ pub struct MenuResponse {
 #[serde(rename_all = "camelCase")]
 pub struct CreateOrderItemRequest {
     /// Product ID.
-    pub product_id: Uuid,
+    pub product_id: String,
     /// Quantity to order.
     pub quantity: i32,
     /// Optional custom item name override.
@@ -153,39 +155,42 @@ pub struct UpdateOrderRequest {
 }
 
 impl OrderResponse {
-    /// Convert a SeaORM order model into a response DTO (without items).
-    pub fn from_model(model: orders::Model) -> Self {
+    /// Convert a domain [`Order`](sakaloka_core::models::order::Order) model
+    /// into a response DTO (without items).
+    pub fn from_model(model: &sakaloka_core::models::order::Order) -> Self {
         Self {
-            id: model.id,
-            order_number: model.order_number,
-            customer_id: model.customer_id,
-            organization_id: model.organization_id,
-            status: model.status,
-            order_type: model.r#type,
+            id: record_id_to_string(&model.id),
+            order_number: model.order_number.clone(),
+            customer_id: model.customer_id.as_ref().map(record_id_to_string),
+            organization_id: record_id_to_string(&model.organization_id),
+            status: model.status.clone(),
+            order_type: model.order_type.clone(),
             subtotal: model.subtotal,
             tax_amount: model.tax_amount,
             discount_amount: model.discount_amount,
             total_amount: model.total_amount,
-            payment_method: model.payment_method,
-            payment_status: model.payment_status,
+            payment_method: model.payment_method.clone(),
+            payment_status: model.payment_status.clone(),
             paid_amount: model.paid_amount,
-            notes: model.notes,
-            table_number: model.table_number,
-            customer_name: model.customer_name,
-            created_by: model.created_by,
-            updated_by: model.updated_by,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
+            notes: model.notes.clone(),
+            table_number: model.table_number.clone(),
+            customer_name: model.customer_name.clone(),
+            created_by: model.created_by.as_ref().map(record_id_to_string),
+            updated_by: model.updated_by.as_ref().map(record_id_to_string),
+            created_at: model.created_at.to_string(),
+            updated_at: model.updated_at.to_string(),
             items: None,
         }
     }
 
-    /// Convert a SeaORM order model into a response DTO with items.
-    pub fn from_model_with_items(model: orders::Model, items: Vec<order_items::Model>) -> Self {
-        let item_responses = items
-            .into_iter()
-            .map(OrderItemResponse::from_model)
-            .collect();
+    /// Convert a domain [`Order`](sakaloka_core::models::order::Order) model
+    /// into a response DTO with its associated
+    /// [`OrderItem`](sakaloka_core::models::order::OrderItem) list.
+    pub fn from_model_with_items(
+        model: &sakaloka_core::models::order::Order,
+        items: &[sakaloka_core::models::order::OrderItem],
+    ) -> Self {
+        let item_responses = items.iter().map(OrderItemResponse::from_model).collect();
         let mut resp = Self::from_model(model);
         resp.items = Some(item_responses);
         resp
@@ -193,17 +198,21 @@ impl OrderResponse {
 }
 
 impl OrderItemResponse {
-    /// Convert a SeaORM order item model into a response DTO.
-    pub fn from_model(model: order_items::Model) -> Self {
+    /// Convert a domain
+    /// [`OrderItem`](sakaloka_core::models::order::OrderItem) model into a
+    /// response DTO.
+    pub fn from_model(model: &sakaloka_core::models::order::OrderItem) -> Self {
         Self {
-            id: model.id,
-            order_id: model.order_id,
-            product_id: model.product_id,
-            item_name: model.item_name,
+            id: record_id_to_string(&model.id),
+            order_id: record_id_to_string(&model.order_id),
+            product_id: record_id_to_string(&model.product_id),
+            item_name: model.item_name.clone(),
             quantity: model.quantity,
             unit_price: model.unit_price,
+            discount_amount: model.discount_amount,
             total_price: model.total_price,
-            created_at: model.created_at,
+            notes: model.notes.clone(),
+            created_at: model.created_at.to_string(),
         }
     }
 }
