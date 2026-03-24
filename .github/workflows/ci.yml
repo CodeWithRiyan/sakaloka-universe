@@ -15,20 +15,19 @@ jobs:
     name: "Iron Curtain Checks"
     runs-on: ubuntu-latest
 
-    services:
-      surrealdb:
-        image: surrealdb/surrealdb:latest
-        ports:
-          - 58000:8000
-        options: >-
-          --health-cmd "/surreal is-ready --log none"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Start SurrealDB
+        run: |
+          docker run -d --name surrealdb -p 58000:8000 \
+            surrealdb/surrealdb:latest \
+            start --user root --pass root memory
+          until docker exec surrealdb /surreal is-ready --log none 2>/dev/null; do
+            sleep 2
+          done
+          echo "SurrealDB is ready"
 
       - name: Install system dependencies (Tauri / WebKitGTK)
         run: |
