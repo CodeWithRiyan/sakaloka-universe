@@ -1,0 +1,2376 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sakaloka API",
+    "description": "Sakaloka-Universe Earth REST API",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "AdjustStockRequest": {
+        "type": "object",
+        "description": "Request body for adjusting stock levels.",
+        "required": [
+          "movementType",
+          "quantity",
+          "reason"
+        ],
+        "properties": {
+          "movementType": {
+            "type": "string",
+            "description": "Type of adjustment (purchase, sale, adjustment, damage, return)."
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional notes."
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Signed quantity to adjust (positive = add, negative = remove)."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Reason for the adjustment."
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional reference string."
+          }
+        }
+      },
+      "BrandResponse": {
+        "type": "object",
+        "description": "Full brand response DTO.",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "organizationId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record creation timestamp."
+          },
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "User who created this brand."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional description."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Brand ID."
+          },
+          "logo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional logo URL."
+          },
+          "name": {
+            "type": "string",
+            "description": "Brand name."
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Owning organization ID."
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-friendly slug."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record last-update timestamp."
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional website URL."
+          }
+        }
+      },
+      "BrandSummary": {
+        "type": "object",
+        "description": "Abbreviated brand info embedded in product responses.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Brand ID."
+          },
+          "name": {
+            "type": "string",
+            "description": "Brand name."
+          }
+        }
+      },
+      "CategoryResponse": {
+        "type": "object",
+        "description": "Full category response DTO.",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "organizationId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record creation timestamp."
+          },
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "User who created this category."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional description."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Category ID."
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional image URL."
+          },
+          "name": {
+            "type": "string",
+            "description": "Category name."
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Owning organization ID."
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional parent category ID for hierarchy."
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-friendly slug."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record last-update timestamp."
+          }
+        }
+      },
+      "CategorySummary": {
+        "type": "object",
+        "description": "Abbreviated category info embedded in product responses.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Category ID."
+          },
+          "name": {
+            "type": "string",
+            "description": "Category name."
+          }
+        }
+      },
+      "CreateBrandRequest": {
+        "type": "object",
+        "description": "Request body for creating a brand.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional description."
+          },
+          "logo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional logo URL."
+          },
+          "name": {
+            "type": "string",
+            "description": "Brand name."
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional website URL."
+          }
+        }
+      },
+      "CreateCategoryRequest": {
+        "type": "object",
+        "description": "Request body for creating a category.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional description."
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional image URL."
+          },
+          "name": {
+            "type": "string",
+            "description": "Category name."
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional parent category ID."
+          }
+        }
+      },
+      "CreateOrderItemRequest": {
+        "type": "object",
+        "description": "Order item within a create order request.",
+        "required": [
+          "productId",
+          "quantity"
+        ],
+        "properties": {
+          "itemName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional custom item name override."
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Product ID."
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Quantity to order."
+          }
+        }
+      },
+      "CreateOrderRequest": {
+        "type": "object",
+        "description": "Request body for creating an order.",
+        "required": [
+          "type",
+          "items"
+        ],
+        "properties": {
+          "customerName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional walk-in customer name."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateOrderItemRequest"
+            },
+            "description": "Order items."
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional notes."
+          },
+          "paymentMethod": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional payment method."
+          },
+          "tableNumber": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional table number."
+          },
+          "type": {
+            "type": "string",
+            "description": "Order type (dine_in, takeaway, delivery)."
+          }
+        }
+      },
+      "CreateOrgRequest": {
+        "type": "object",
+        "description": "Request body for creating an organization.",
+        "required": [
+          "name",
+          "type"
+        ],
+        "properties": {
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional physical address."
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional city."
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional organization code."
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional country."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional description."
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional contact email."
+          },
+          "logo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional logo URL."
+          },
+          "name": {
+            "type": "string",
+            "description": "Organization name."
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional parent organization ID."
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional contact phone."
+          },
+          "postalCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional postal code."
+          },
+          "registrationNumber": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional business registration number."
+          },
+          "settings": {
+            "description": "Optional JSON settings."
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional state/province."
+          },
+          "taxNumber": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional tax identification number."
+          },
+          "type": {
+            "type": "string",
+            "description": "Organization type (e.g. \"restaurant\", \"retail\")."
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional website URL."
+          }
+        }
+      },
+      "CreateProductRequest": {
+        "type": "object",
+        "description": "Request body for creating a product.",
+        "required": [
+          "name",
+          "sku",
+          "basePrice"
+        ],
+        "properties": {
+          "barcode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional barcode."
+          },
+          "basePrice": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Base selling price in smallest currency unit."
+          },
+          "brandId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional brand ID."
+          },
+          "categoryId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional category ID."
+          },
+          "costPrice": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Optional cost price."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional product description."
+          },
+          "dimensions": {
+            "description": "Optional dimensions as JSON."
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional image URL."
+          },
+          "isFeatured": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the product is featured (default false)."
+          },
+          "minStockLevel": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Optional minimum stock level."
+          },
+          "name": {
+            "type": "string",
+            "description": "Product name."
+          },
+          "sku": {
+            "type": "string",
+            "description": "Stock keeping unit (unique within organization)."
+          },
+          "tags": {
+            "description": "Optional tags as JSON."
+          },
+          "trackInventory": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether to track inventory (default false)."
+          },
+          "weight": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Optional weight in kilograms."
+          }
+        }
+      },
+      "CreateRoleRequest": {
+        "type": "object",
+        "description": "Request body for creating a role.",
+        "required": [
+          "name",
+          "permissions"
+        ],
+        "properties": {
+          "isActive": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the role should be active immediately."
+          },
+          "name": {
+            "type": "string",
+            "description": "Role name."
+          },
+          "permissions": {
+            "description": "JSON permissions to assign."
+          }
+        }
+      },
+      "CreateUserRequest": {
+        "type": "object",
+        "description": "Request body for creating a user.",
+        "required": [
+          "email",
+          "fullName",
+          "password",
+          "roleId"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email address."
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Full name."
+          },
+          "isActive": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the user should be active immediately."
+          },
+          "password": {
+            "type": "string",
+            "description": "Plaintext password (will be hashed before storage)."
+          },
+          "roleId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Role ID to assign."
+          }
+        }
+      },
+      "ListFilters": {
+        "type": "object",
+        "description": "Active sort filters echoed back to the frontend.",
+        "required": [
+          "sortBy",
+          "sortOrder"
+        ],
+        "properties": {
+          "sortBy": {
+            "type": "string",
+            "description": "Column used for sorting."
+          },
+          "sortOrder": {
+            "type": "string",
+            "description": "Sort direction (`asc` or `desc`)."
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/auth/login`.",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "User email address.",
+            "example": "admin@sakaloka.id"
+          },
+          "password": {
+            "type": "string",
+            "description": "Plaintext password.",
+            "example": "sakaloka-dev"
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "description": "Successful login / refresh response.",
+        "required": [
+          "access_token",
+          "refresh_token",
+          "user"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "description": "Short-lived access JWT."
+          },
+          "refresh_token": {
+            "type": "string",
+            "description": "Long-lived refresh token."
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserProfile",
+            "description": "Authenticated user profile."
+          }
+        }
+      },
+      "MenuResponse": {
+        "type": "object",
+        "description": "POS menu item DTO (product + pricing for the order screen).",
+        "required": [
+          "id",
+          "name",
+          "sku",
+          "basePrice",
+          "isFeatured"
+        ],
+        "properties": {
+          "basePrice": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Base selling price."
+          },
+          "categoryId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Category ID."
+          },
+          "categoryName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Category name (if resolved)."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Product ID."
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Image URL."
+          },
+          "isFeatured": {
+            "type": "boolean",
+            "description": "Whether the product is featured."
+          },
+          "name": {
+            "type": "string",
+            "description": "Product name."
+          },
+          "sku": {
+            "type": "string",
+            "description": "Product SKU."
+          }
+        }
+      },
+      "OrderItemResponse": {
+        "type": "object",
+        "description": "Single order item response DTO.",
+        "required": [
+          "id",
+          "orderId",
+          "productId",
+          "itemName",
+          "quantity",
+          "unitPrice",
+          "totalPrice",
+          "createdAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record creation timestamp."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Order item ID."
+          },
+          "itemName": {
+            "type": "string",
+            "description": "Item name snapshot."
+          },
+          "orderId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Parent order ID."
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Product ID."
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Quantity ordered."
+          },
+          "totalPrice": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total price for this line."
+          },
+          "unitPrice": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unit price at time of order."
+          }
+        }
+      },
+      "OrderResponse": {
+        "type": "object",
+        "description": "Full order response DTO.",
+        "required": [
+          "id",
+          "orderNumber",
+          "organizationId",
+          "status",
+          "type",
+          "subtotal",
+          "taxAmount",
+          "discountAmount",
+          "totalAmount",
+          "paymentStatus",
+          "paidAmount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record creation timestamp."
+          },
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "User who created this order."
+          },
+          "customerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional customer user ID."
+          },
+          "customerName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Walk-in customer name."
+          },
+          "discountAmount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Discount amount."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Order ID."
+          },
+          "items": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/OrderItemResponse"
+            },
+            "description": "Order items (populated when fetching a single order)."
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Order notes."
+          },
+          "orderNumber": {
+            "type": "string",
+            "description": "Unique order number."
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Organization ID."
+          },
+          "paidAmount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Amount already paid."
+          },
+          "paymentMethod": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Payment method."
+          },
+          "paymentStatus": {
+            "type": "string",
+            "description": "Payment status."
+          },
+          "status": {
+            "type": "string",
+            "description": "Order status."
+          },
+          "subtotal": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Subtotal before tax/discounts."
+          },
+          "tableNumber": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Table number for dine-in orders."
+          },
+          "taxAmount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Tax amount."
+          },
+          "totalAmount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total amount after tax and discounts."
+          },
+          "type": {
+            "type": "string",
+            "description": "Order type (dine_in, takeaway, delivery)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record last-update timestamp."
+          },
+          "updatedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "User who last updated this order."
+          }
+        }
+      },
+      "OrgSummary": {
+        "type": "object",
+        "description": "Abbreviated organization data included in auth responses.",
+        "required": [
+          "id",
+          "name",
+          "type"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Organization ID."
+          },
+          "name": {
+            "type": "string",
+            "description": "Organization name."
+          },
+          "type": {
+            "type": "string",
+            "description": "Organization type."
+          }
+        }
+      },
+      "OrganizationResponse": {
+        "type": "object",
+        "description": "Full organization response DTO.",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional physical address."
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional city."
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional organization code."
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional country."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record creation timestamp."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional description."
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional contact email."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Organization ID."
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether the organization is active."
+          },
+          "logo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional logo URL."
+          },
+          "name": {
+            "type": "string",
+            "description": "Organization name."
+          },
+          "ownerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional owner user ID."
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional parent organization ID."
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional contact phone."
+          },
+          "postalCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional postal code."
+          },
+          "registrationNumber": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional business registration number."
+          },
+          "settings": {
+            "description": "Optional JSON settings."
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional state/province."
+          },
+          "taxNumber": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional tax identification number."
+          },
+          "type": {
+            "type": "string",
+            "description": "Organization type."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record last-update timestamp."
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional website URL."
+          }
+        }
+      },
+      "PageMeta": {
+        "type": "object",
+        "description": "Pagination metadata matching Venus `IPageMeta`.",
+        "required": [
+          "page",
+          "limit",
+          "total",
+          "pages",
+          "hasNextPage",
+          "hasPrevPage"
+        ],
+        "properties": {
+          "hasNextPage": {
+            "type": "boolean",
+            "description": "Whether a next page exists."
+          },
+          "hasPrevPage": {
+            "type": "boolean",
+            "description": "Whether a previous page exists."
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Items per page.",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Current page number (1-indexed).",
+            "minimum": 0
+          },
+          "pages": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of pages.",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of matching records.",
+            "minimum": 0
+          }
+        }
+      },
+      "PermissionsResponse": {
+        "type": "object",
+        "description": "Response listing all available permissions.",
+        "required": [
+          "permissions"
+        ],
+        "properties": {
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of all known permission strings."
+          }
+        }
+      },
+      "ProductListResponse": {
+        "type": "object",
+        "description": "Product list response DTO (includes variant count).",
+        "required": [
+          "id",
+          "name",
+          "sku",
+          "basePrice",
+          "isFeatured",
+          "organizationId",
+          "createdAt",
+          "updatedAt",
+          "_count"
+        ],
+        "properties": {
+          "_count": {
+            "$ref": "#/components/schemas/VariantCount",
+            "description": "Variant count."
+          },
+          "barcode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional barcode."
+          },
+          "basePrice": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Base selling price."
+          },
+          "brand": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BrandSummary",
+                "description": "Resolved brand summary."
+              }
+            ]
+          },
+          "brandId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Brand ID."
+          },
+          "category": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CategorySummary",
+                "description": "Resolved category summary."
+              }
+            ]
+          },
+          "categoryId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Category ID."
+          },
+          "costPrice": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Cost price."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record creation timestamp."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional product description."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Product ID."
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Image URL."
+          },
+          "isFeatured": {
+            "type": "boolean",
+            "description": "Whether the product is featured."
+          },
+          "name": {
+            "type": "string",
+            "description": "Product name."
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Owning organization ID."
+          },
+          "sku": {
+            "type": "string",
+            "description": "Stock keeping unit."
+          },
+          "tags": {
+            "description": "Tags as JSON."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record last-update timestamp."
+          }
+        }
+      },
+      "ProductResponse": {
+        "type": "object",
+        "description": "Full product response DTO.",
+        "required": [
+          "id",
+          "name",
+          "sku",
+          "basePrice",
+          "trackInventory",
+          "isFeatured",
+          "organizationId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "barcode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional barcode."
+          },
+          "basePrice": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Base selling price in smallest currency unit."
+          },
+          "brand": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BrandSummary",
+                "description": "Resolved brand summary."
+              }
+            ]
+          },
+          "brandId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Brand ID."
+          },
+          "category": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CategorySummary",
+                "description": "Resolved category summary."
+              }
+            ]
+          },
+          "categoryId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Category ID."
+          },
+          "costPrice": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Optional cost price in smallest currency unit."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record creation timestamp."
+          },
+          "deletedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Soft-delete timestamp."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional product description."
+          },
+          "dimensions": {
+            "description": "Dimensions as JSON."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Product ID."
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Image URL."
+          },
+          "isFeatured": {
+            "type": "boolean",
+            "description": "Whether the product is featured."
+          },
+          "minStockLevel": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Minimum stock level threshold."
+          },
+          "name": {
+            "type": "string",
+            "description": "Product name."
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Owning organization ID."
+          },
+          "sku": {
+            "type": "string",
+            "description": "Stock keeping unit."
+          },
+          "tags": {
+            "description": "Tags as JSON."
+          },
+          "trackInventory": {
+            "type": "boolean",
+            "description": "Whether inventory tracking is enabled."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record last-update timestamp."
+          },
+          "weight": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Weight in kilograms."
+          }
+        }
+      },
+      "RefreshRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/auth/refresh`.",
+        "required": [
+          "refreshToken"
+        ],
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "description": "The refresh token issued during login or a previous refresh."
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/auth/register`.",
+        "required": [
+          "email",
+          "password",
+          "fullName",
+          "organizationName"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "User email address.",
+            "example": "newuser@sakaloka.id"
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Full name of the user.",
+            "example": "Budi Santoso"
+          },
+          "organizationName": {
+            "type": "string",
+            "description": "Name of the organization to create or join.",
+            "example": "Warung Budi"
+          },
+          "password": {
+            "type": "string",
+            "description": "Plaintext password (must meet complexity rules).",
+            "example": "S3cureP@ssw0rd!"
+          }
+        }
+      },
+      "RoleResponse": {
+        "type": "object",
+        "description": "Full role response DTO.",
+        "required": [
+          "id",
+          "name",
+          "organizationId",
+          "isSystemRole",
+          "permissions",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record creation timestamp."
+          },
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "User who created this role."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Role ID."
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether the role is active."
+          },
+          "isSystemRole": {
+            "type": "boolean",
+            "description": "Whether this is a system-defined role."
+          },
+          "name": {
+            "type": "string",
+            "description": "Role name."
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Organization ID."
+          },
+          "permissions": {
+            "description": "JSON permissions for this role."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record last-update timestamp."
+          }
+        }
+      },
+      "RoleSummary": {
+        "type": "object",
+        "description": "Abbreviated role data included in auth responses.",
+        "required": [
+          "id",
+          "name",
+          "permissions"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Role ID."
+          },
+          "name": {
+            "type": "string",
+            "description": "Role name."
+          },
+          "permissions": {
+            "description": "List of permission strings."
+          }
+        }
+      },
+      "SelectOrgRequest": {
+        "type": "object",
+        "description": "Request body to select / switch to a different organization.",
+        "required": [
+          "organizationId"
+        ],
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the organization to switch to."
+          }
+        }
+      },
+      "StockHistoryResponse": {
+        "type": "object",
+        "description": "Stock movement history entry response DTO.",
+        "required": [
+          "id",
+          "inventoryItemId",
+          "movementType",
+          "quantity",
+          "reason",
+          "totalBefore",
+          "quantityChange",
+          "totalAfter",
+          "createdAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record creation timestamp."
+          },
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "User who created the movement."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Movement ID."
+          },
+          "inventoryItemId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Inventory item ID."
+          },
+          "movementType": {
+            "type": "string",
+            "description": "Type of movement (purchase, sale, adjustment, etc.)."
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional notes."
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Quantity moved."
+          },
+          "quantityChange": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Signed quantity change."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Reason for the movement."
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional reference (order number, PO, etc.)."
+          },
+          "totalAfter": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Inventory after this movement."
+          },
+          "totalBefore": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Inventory before this movement."
+          }
+        }
+      },
+      "StockResponse": {
+        "type": "object",
+        "description": "Full stock (inventory item) response DTO.",
+        "required": [
+          "id",
+          "productId",
+          "quantityOnHand",
+          "quantityReserved",
+          "quantityAvailable",
+          "organizationId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "averageCost": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Average cost per unit."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record creation timestamp."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Inventory item ID."
+          },
+          "lastCost": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Last purchase cost per unit."
+          },
+          "lastMovementAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Timestamp of last stock movement."
+          },
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional storage location ID."
+          },
+          "maxStockLevel": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Maximum stock level."
+          },
+          "minStockLevel": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Minimum stock level threshold."
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Organization ID."
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Product ID."
+          },
+          "quantityAvailable": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Quantity available for sale."
+          },
+          "quantityOnHand": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Quantity currently on hand."
+          },
+          "quantityReserved": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Quantity reserved for pending orders."
+          },
+          "reorderPoint": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Reorder point."
+          },
+          "reorderQuantity": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Reorder quantity."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record last-update timestamp."
+          }
+        }
+      },
+      "UpdateBrandRequest": {
+        "type": "object",
+        "description": "Request body for updating a brand (all fields optional).",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated description."
+          },
+          "logo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated logo URL."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated brand name."
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated website URL."
+          }
+        }
+      },
+      "UpdateCategoryRequest": {
+        "type": "object",
+        "description": "Request body for updating a category (all fields optional).",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated description."
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated image URL."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated category name."
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Updated parent category ID."
+          }
+        }
+      },
+      "UpdateOrderRequest": {
+        "type": "object",
+        "description": "Request body for updating an order.",
+        "properties": {
+          "customerName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated customer name."
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated notes."
+          },
+          "paidAmount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Amount paid (for partial payments)."
+          },
+          "paymentMethod": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated payment method."
+          },
+          "paymentStatus": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated payment status."
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated status."
+          },
+          "tableNumber": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated table number."
+          }
+        }
+      },
+      "UpdateOrgRequest": {
+        "type": "object",
+        "description": "Request body for updating an organization (all fields optional).",
+        "properties": {
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated physical address."
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated city."
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated organization code."
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated country."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated description."
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated contact email."
+          },
+          "isActive": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Updated active flag."
+          },
+          "logo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated logo URL."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated organization name."
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated contact phone."
+          },
+          "postalCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated postal code."
+          },
+          "registrationNumber": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated business registration number."
+          },
+          "settings": {
+            "description": "Updated JSON settings."
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated state/province."
+          },
+          "taxNumber": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated tax identification number."
+          },
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated organization type."
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated website URL."
+          }
+        }
+      },
+      "UpdateProductRequest": {
+        "type": "object",
+        "description": "Request body for updating a product (all fields optional).",
+        "properties": {
+          "barcode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated barcode."
+          },
+          "basePrice": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Updated base price."
+          },
+          "brandId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Updated brand ID."
+          },
+          "categoryId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Updated category ID."
+          },
+          "costPrice": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Updated cost price."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated description."
+          },
+          "dimensions": {
+            "description": "Updated dimensions."
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated image URL."
+          },
+          "isFeatured": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Updated is_featured flag."
+          },
+          "minStockLevel": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Updated minimum stock level."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated product name."
+          },
+          "sku": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated SKU."
+          },
+          "tags": {
+            "description": "Updated tags."
+          },
+          "trackInventory": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Updated track_inventory flag."
+          },
+          "weight": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Updated weight."
+          }
+        }
+      },
+      "UpdateRoleRequest": {
+        "type": "object",
+        "description": "Request body for updating a role (all fields optional).",
+        "properties": {
+          "isActive": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Updated active flag."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated role name."
+          },
+          "permissions": {
+            "description": "Updated permissions."
+          }
+        }
+      },
+      "UpdateUserRequest": {
+        "type": "object",
+        "description": "Request body for updating a user (all fields optional).",
+        "properties": {
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated email."
+          },
+          "fullName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated full name."
+          },
+          "isActive": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Updated active flag."
+          },
+          "password": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Updated plaintext password."
+          },
+          "roleId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Updated role ID."
+          }
+        }
+      },
+      "UserProfile": {
+        "type": "object",
+        "description": "User profile embedded in the login response.",
+        "required": [
+          "id",
+          "email",
+          "fullName",
+          "organization",
+          "role",
+          "preferences"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email address."
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Full name."
+          },
+          "id": {
+            "type": "string",
+            "description": "User primary key."
+          },
+          "organization": {
+            "$ref": "#/components/schemas/OrgSummary",
+            "description": "Summary of the user's organization."
+          },
+          "preferences": {
+            "description": "Arbitrary user preferences (JSON)."
+          },
+          "role": {
+            "$ref": "#/components/schemas/RoleSummary",
+            "description": "Summary of the user's role."
+          }
+        }
+      },
+      "UserResponse": {
+        "type": "object",
+        "description": "Full user response DTO (password hash is never serialized).",
+        "required": [
+          "id",
+          "email",
+          "fullName",
+          "organizationId",
+          "roleId",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record creation timestamp."
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address."
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Full name."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "User ID."
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether the user is active."
+          },
+          "lastLoginAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Last login timestamp."
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Organization ID."
+          },
+          "roleId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Role ID."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record last-update timestamp."
+          }
+        }
+      },
+      "VariantCount": {
+        "type": "object",
+        "description": "Variant count for list endpoints.",
+        "required": [
+          "variants"
+        ],
+        "properties": {
+          "variants": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of variants."
+          }
+        }
+      }
+    }
+  }
+}

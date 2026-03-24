@@ -1,0 +1,14 @@
+[variables]
+NODE_VERSION = "22.12.0"
+
+[phases.setup]
+nixPkgs = ["nodejs_latest", "nodePackages.pnpm"]
+
+[phases.build]
+cmds = [
+  "pnpm install --frozen-lockfile",
+  "pnpm run build"
+]
+
+[start]
+cmd = "pnpm preview --host 0.0.0.0 --port 3000"

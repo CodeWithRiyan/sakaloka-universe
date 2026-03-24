@@ -109,17 +109,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Clone Venus frontend
-        shell: bash
-        run: |
-          git clone --depth 1 https://github.com/CodeWithRiyan/sakapos.git "$RUNNER_TEMP/venus-full"
-          # Remove .git and src-tauri (parent repo's src-tauri is authoritative)
-          rm -rf "$RUNNER_TEMP/venus-full/.git" "$RUNNER_TEMP/venus-full/src-tauri"
-          # Copy frontend files into apps/venus
-          shopt -s dotglob
-          cp -r "$RUNNER_TEMP/venus-full"/* apps/venus/
-          rm -rf "$RUNNER_TEMP/venus-full"
-
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
         run: |
@@ -195,14 +184,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Clone Venus frontend
-        run: |
-          git clone --depth 1 https://github.com/CodeWithRiyan/sakapos.git "$RUNNER_TEMP/venus-full"
-          rm -rf "$RUNNER_TEMP/venus-full/.git" "$RUNNER_TEMP/venus-full/src-tauri"
-          shopt -s dotglob
-          cp -r "$RUNNER_TEMP/venus-full"/* apps/venus/
-          rm -rf "$RUNNER_TEMP/venus-full"
 
       - name: Install Linux system dependencies
         run: |
