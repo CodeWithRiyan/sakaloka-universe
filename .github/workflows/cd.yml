@@ -97,7 +97,7 @@ jobs:
             os: macos-latest
             target: aarch64-apple-darwin
           - name: macOS (Intel)
-            os: macos-13
+            os: macos-latest
             target: x86_64-apple-darwin
           - name: Windows
             os: windows-latest
@@ -108,6 +108,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Clone Venus frontend
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/CodeWithRiyan/sakapos.git "$RUNNER_TEMP/venus-full"
+          # Remove .git and src-tauri (parent repo's src-tauri is authoritative)
+          rm -rf "$RUNNER_TEMP/venus-full/.git" "$RUNNER_TEMP/venus-full/src-tauri"
+          # Copy frontend files into apps/venus
+          shopt -s dotglob
+          cp -r "$RUNNER_TEMP/venus-full"/* apps/venus/
+          rm -rf "$RUNNER_TEMP/venus-full"
 
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
@@ -154,7 +165,13 @@ jobs:
       - name: Activate environment config
         working-directory: apps/venus
         shell: bash
-        run: cp .env.${{ needs.resolve-env.outputs.env_name }} .env
+        run: |
+          if [ -f ".env.${{ needs.resolve-env.outputs.env_name }}" ]; then
+            cp ".env.${{ needs.resolve-env.outputs.env_name }}" .env
+          else
+            echo "VITE_ENV=${{ needs.resolve-env.outputs.env_name }}" > .env
+            echo "::warning::No .env.${{ needs.resolve-env.outputs.env_name }} found, created minimal .env"
+          fi
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
@@ -178,6 +195,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Clone Venus frontend
+        run: |
+          git clone --depth 1 https://github.com/CodeWithRiyan/sakapos.git "$RUNNER_TEMP/venus-full"
+          rm -rf "$RUNNER_TEMP/venus-full/.git" "$RUNNER_TEMP/venus-full/src-tauri"
+          shopt -s dotglob
+          cp -r "$RUNNER_TEMP/venus-full"/* apps/venus/
+          rm -rf "$RUNNER_TEMP/venus-full"
 
       - name: Install Linux system dependencies
         run: |
@@ -234,7 +259,13 @@ jobs:
 
       - name: Activate environment config
         working-directory: apps/venus
-        run: cp .env.${{ needs.resolve-env.outputs.env_name }} .env
+        run: |
+          if [ -f ".env.${{ needs.resolve-env.outputs.env_name }}" ]; then
+            cp ".env.${{ needs.resolve-env.outputs.env_name }}" .env
+          else
+            echo "VITE_ENV=${{ needs.resolve-env.outputs.env_name }}" > .env
+            echo "::warning::No .env.${{ needs.resolve-env.outputs.env_name }} found, created minimal .env"
+          fi
 
       - name: Initialize Tauri Android project
         working-directory: apps/venus
