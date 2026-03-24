@@ -204,7 +204,9 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Android NDK
-        run: sdkmanager --install "ndk;27.0.12077973"
+        run: |
+          sdkmanager --install "ndk;27.0.12077973"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
 
       - name: Install Rust stable with Android targets
         uses: dtolnay/rust-toolchain@stable
@@ -256,8 +258,6 @@ jobs:
         if: ${{ needs.resolve-env.outputs.env_name != 'prod' }}
         working-directory: apps/venus
         run: pnpm tauri android build --apk
-        env:
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
 
       - name: Decode signing keystore
         if: ${{ needs.resolve-env.outputs.env_name == 'prod' }}
@@ -268,7 +268,6 @@ jobs:
         working-directory: apps/venus
         run: pnpm tauri android build --apk
         env:
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
           TAURI_ANDROID_KEYSTORE_PATH: /tmp/keystore.jks
           TAURI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           TAURI_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
