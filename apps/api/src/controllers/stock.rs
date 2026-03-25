@@ -5,6 +5,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use sakaloka_secure::rbac::{guard::RequireScope, Scope};
 
 use crate::app::AppState;
 use crate::error::ApiError;
@@ -17,15 +18,20 @@ use crate::views::{
 /// Registers all `/inventory/pos-stock` routes (nested under `/api` by the
 /// top-level router).
 pub fn routes() -> Router<AppState> {
-    Router::new()
+    let read_routes = Router::new()
         .route("/inventory/pos-stock", get(list))
         .route("/inventory/pos-stock/low-stock", get(low_stock))
         .route("/inventory/pos-stock/{id}", get(show))
-        .route("/inventory/pos-stock/{id}/history", get(history))
+        .route("/inventory/pos-stock/{id}/history", get(history));
+
+    let write_routes = Router::new()
         .route(
             "/inventory/pos-stock/products/{product_id}/adjust",
             post(adjust),
         )
+        .route_layer(RequireScope::new(Scope::EntityWrite));
+
+    Router::new().merge(read_routes).merge(write_routes)
 }
 
 /// `GET /api/inventory/pos-stock` — list all stock items with pagination.
@@ -79,20 +85,19 @@ async fn low_stock(
 ) -> Result<Json<PaginatedResponse<StockResponse>>, ApiError> {
     let page = params.page();
     let limit = params.limit();
+    let start = (page - 1) * limit;
 
-    let all_low = state.db.list_low_stock().await.map_err(|e| {
+    let total = state.db.count_low_stock().await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to count low stock items");
+        ApiError::Internal(anyhow::anyhow!("Failed to count low stock items"))
+    })?;
+
+    let items = state.db.list_low_stock(limit, start).await.map_err(|e| {
         tracing::error!(error = %e, "Failed to query low stock items");
         ApiError::Internal(anyhow::anyhow!("Failed to query low stock items"))
     })?;
 
-    let total = all_low.len() as u64;
-    let start = ((page - 1) * limit) as usize;
-    let page_items: Vec<_> = all_low.iter().skip(start).take(limit as usize).collect();
-
-    let responses: Vec<StockResponse> = page_items
-        .iter()
-        .map(|i| StockResponse::from_model(i))
-        .collect();
+    let responses: Vec<StockResponse> = items.iter().map(StockResponse::from_model).collect();
 
     Ok(Json(PaginatedResponse {
         success: true,

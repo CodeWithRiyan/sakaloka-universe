@@ -5,6 +5,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use sakaloka_secure::rbac::{guard::RequireScope, Scope};
 
 use crate::app::AppState;
 use crate::error::ApiError;
@@ -16,10 +17,18 @@ use crate::views::{
 /// Registers all `/roles` routes (nested under `/api` by the top-level
 /// router).
 pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/roles", get(list).post(create))
+    let read_routes = Router::new()
+        .route("/roles", get(list))
         .route("/roles/permissions", get(permissions))
-        .route("/roles/{id}", get(show).patch(update).delete(remove))
+        .route("/roles/{id}", get(show))
+        .route_layer(RequireScope::new(Scope::UserRead));
+
+    let write_routes = Router::new()
+        .route("/roles", axum::routing::post(create))
+        .route("/roles/{id}", axum::routing::patch(update).delete(remove))
+        .route_layer(RequireScope::new(Scope::UserManage));
+
+    Router::new().merge(read_routes).merge(write_routes)
 }
 
 /// All known permission strings for the Sakaloka platform.

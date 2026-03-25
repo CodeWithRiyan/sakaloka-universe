@@ -1,0 +1,60 @@
+# Sakaloka-Universe — Production environment overrides
+# SurrealDB: rocksdb persistence, stricter resource limits
+
+services:
+
+  sakaloka-api:
+    container_name: sakaloka-prod-api
+    ports:
+      - "127.0.0.1:60300:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - sakaloka-prod-net
+
+  sakaloka-surrealdb:
+    container_name: sakaloka-prod-surrealdb
+    command: start --log warn --user ${SURREALDB_USER:-root} --pass ${SURREALDB_PASS} rocksdb://data
+    ports:
+      - "127.0.0.1:60310:8000"
+    volumes:
+      - sakaloka-prod-surrealdb-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - sakaloka-prod-net
+
+  sakaloka-zenoh:
+    container_name: sakaloka-prod-zenoh
+    ports:
+      - "127.0.0.1:60320:7447"
+    volumes:
+      - ./config/zenoh.prod.json5:/zenoh.json5:ro
+      - ./config/zenoh-users.prod.dict:/zenoh-users.dict:ro
+    networks:
+      - sakaloka-prod-net
+
+  sakaloka-qdrant:
+    container_name: sakaloka-prod-qdrant
+    ports:
+      - "127.0.0.1:60330:6333"
+    volumes:
+      - sakaloka-prod-qdrant-data:/qdrant/storage
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - sakaloka-prod-net
+
+volumes:
+  sakaloka-prod-surrealdb-data:
+  sakaloka-prod-qdrant-data:
+
+networks:
+  sakaloka-prod-net:
+    driver: bridge

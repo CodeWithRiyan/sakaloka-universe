@@ -30,6 +30,21 @@ pub fn record_id_to_string(id: &RecordId) -> String {
     }
 }
 
+/// Produce a URL-friendly slug from a name.
+///
+/// Converts to lowercase, replaces non-alphanumeric characters with hyphens,
+/// and collapses consecutive hyphens.
+pub fn slugify(name: &str) -> String {
+    name.to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
 /// Standard API response envelope matching Venus frontend expectations.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ApiResponse<T: Serialize> {

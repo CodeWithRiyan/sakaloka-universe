@@ -41,7 +41,7 @@ COPY libs/ libs/
 RUN cargo build --release --package sakaloka-api
 
 # ── Stage 2: Runtime ─────────────────────────────────────────
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 \
@@ -52,8 +52,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY --from=builder /app/target/release/sakaloka-api .
+COPY libs/data/surql/ /app/migrations/
 
 ENV RUST_LOG=info
+ENV MIGRATIONS_DIR=/app/migrations
 
 EXPOSE 3000
 

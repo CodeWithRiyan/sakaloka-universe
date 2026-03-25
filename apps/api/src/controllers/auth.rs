@@ -16,13 +16,17 @@ use crate::views::{
     record_id_to_string, ApiResponse,
 };
 
-/// Registers all `/auth` routes (nested under `/api` by the top-level router).
-pub fn routes() -> Router<AppState> {
+/// Public `/auth` routes — no JWT required.
+pub fn public_routes() -> Router<AppState> {
     Router::new()
         .route("/auth/login", post(login))
         .route("/auth/register", post(register))
         .route("/auth/refresh", post(refresh))
-        .route("/auth/profile", get(profile))
+}
+
+/// Protected `/auth` routes — require valid JWT.
+pub fn protected_routes() -> Router<AppState> {
+    Router::new().route("/auth/profile", get(profile))
 }
 
 /// `POST /api/auth/login` — authenticate a user and return tokens.
@@ -68,7 +72,15 @@ async fn login(
         }
     };
 
-    let valid = sakaloka_secure::argon2::verify_password(&pw, &user.password_hash).unwrap_or(false);
+    let valid = match sakaloka_secure::argon2::verify_password(&pw, &user.password_hash) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!(error = %e, "Password verification error");
+            return Err(ApiError::Internal(anyhow::anyhow!(
+                "Password verification failed"
+            )));
+        }
+    };
 
     if !valid {
         return Ok(Json(ApiResponse::error(
@@ -80,16 +92,24 @@ async fn login(
     // 3. Load organization and role for the profile
     let user_id_str = record_id_to_string(&user.id);
 
-    let org_id = user
-        .organization_id
-        .as_ref()
-        .map(record_id_to_string)
-        .unwrap_or_default();
-    let role_id = user
-        .role_id
-        .as_ref()
-        .map(record_id_to_string)
-        .unwrap_or_default();
+    let org_id = match user.organization_id.as_ref() {
+        Some(id) => record_id_to_string(id),
+        None => {
+            return Ok(Json(ApiResponse::error(
+                "incomplete_profile",
+                "User account has no organization assigned. Contact an administrator.",
+            )))
+        }
+    };
+    let role_id = match user.role_id.as_ref() {
+        Some(id) => record_id_to_string(id),
+        None => {
+            return Ok(Json(ApiResponse::error(
+                "incomplete_profile",
+                "User account has no role assigned. Contact an administrator.",
+            )))
+        }
+    };
 
     let org = state.db.find_organization(&org_id).await.map_err(|e| {
         tracing::error!(error = %e, "Failed to load organization");
@@ -130,11 +150,25 @@ async fn login(
     )
     .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to issue JWT")))?;
 
-    // 5. Generate refresh token
+    // 5. Generate refresh token and persist session
     let refresh_token = sakaloka_secure::newtypes::TokenId::new().to_string();
+    let token_hash = sakaloka_secure::tokens::rotation::hash_refresh_token(&refresh_token);
 
-    // 6. Update last_login_at
-    let _ = state.db.update_last_login(&user_id_str).await;
+    if let Err(e) = state
+        .db
+        .create_session(&uid, &session_id, &token_hash)
+        .await
+    {
+        tracing::error!(error = %e, "Failed to persist session during login");
+        return Err(ApiError::Internal(anyhow::anyhow!(
+            "Failed to create session"
+        )));
+    }
+
+    // 6. Update last_login_at (best-effort, log on failure)
+    if let Err(e) = state.db.update_last_login(&user_id_str).await {
+        tracing::warn!(error = %e, user_id = %user_id_str, "Failed to update last_login_at");
+    }
 
     let response = LoginResponse {
         access_token,
@@ -242,10 +276,16 @@ async fn register(
     let user_id_str = record_id_to_string(&user.id);
 
     // 7. Set organization owner
-    let _ = state
+    if let Err(e) = state
         .db
         .update_organization_owner(&org_id_str, &user_id_str)
-        .await;
+        .await
+    {
+        tracing::error!(error = %e, org_id = %org_id_str, "Failed to set organization owner during registration");
+        return Err(ApiError::Internal(anyhow::anyhow!(
+            "Failed to set organization owner"
+        )));
+    }
 
     // 8. Issue tokens
     let uid = sakaloka_secure::newtypes::UserId::new(&user_id_str)
@@ -269,6 +309,18 @@ async fn register(
     .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to issue JWT")))?;
 
     let refresh_token = sakaloka_secure::newtypes::TokenId::new().to_string();
+    let token_hash = sakaloka_secure::tokens::rotation::hash_refresh_token(&refresh_token);
+
+    if let Err(e) = state
+        .db
+        .create_session(&uid, &session_id, &token_hash)
+        .await
+    {
+        tracing::error!(error = %e, "Failed to persist session during registration");
+        return Err(ApiError::Internal(anyhow::anyhow!(
+            "Failed to create session"
+        )));
+    }
 
     let response = LoginResponse {
         access_token,
@@ -318,15 +370,9 @@ async fn refresh(
         )));
     }
 
-    // Hash the incoming token to look up the session
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(payload.refresh_token.as_bytes());
-    let _token_hash = format!("{:x}", hasher.finalize());
-
     // TODO: Complete refresh token rotation once session persistence is wired
     // up via SurrealDB.  The sakaloka_secure::tokens::rotation module handles
-    // reuse detection and session termination.
+    // reuse detection, token hashing, and session termination.
 
     Ok(Json(ApiResponse::error(
         "not_implemented",

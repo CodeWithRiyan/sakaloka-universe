@@ -3,6 +3,21 @@
 use crate::error::SecureError;
 use std::future::Future;
 
+/// SHA-256 hash a raw refresh token for safe storage.
+///
+/// # Examples
+///
+/// ```rust
+/// let hash = sakaloka_secure::tokens::rotation::hash_refresh_token("my-token");
+/// assert_eq!(hash.len(), 64); // hex-encoded SHA-256
+/// ```
+pub fn hash_refresh_token(token: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
 /// Database abstraction for managing the JTI blocklist.
 /// Implemented by the data crate.
 pub trait JtiStore: Send + Sync {

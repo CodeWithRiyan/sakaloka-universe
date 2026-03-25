@@ -60,7 +60,7 @@ pub async fn auth_middleware(
                 Json(serde_json::json!({
                     "success": false,
                     "error": "invalid_token",
-                    "message": e.to_string()
+                    "message": "Token is invalid or expired"
                 })),
             )
                 .into_response()

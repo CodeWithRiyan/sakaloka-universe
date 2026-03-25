@@ -5,6 +5,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use sakaloka_secure::rbac::{guard::RequireScope, Scope};
 
 use crate::app::AppState;
 use crate::error::ApiError;
@@ -16,9 +17,17 @@ use crate::views::{
 /// Registers all `/users` routes (nested under `/api` by the top-level
 /// router).
 pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/users", get(list).post(create))
-        .route("/users/{id}", get(show).patch(update).delete(remove))
+    let read_routes = Router::new()
+        .route("/users", get(list))
+        .route("/users/{id}", get(show))
+        .route_layer(RequireScope::new(Scope::UserRead));
+
+    let write_routes = Router::new()
+        .route("/users", axum::routing::post(create))
+        .route("/users/{id}", axum::routing::patch(update).delete(remove))
+        .route_layer(RequireScope::new(Scope::UserManage));
+
+    Router::new().merge(read_routes).merge(write_routes)
 }
 
 /// `GET /api/users` — list users with pagination and search.

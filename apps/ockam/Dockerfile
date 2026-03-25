@@ -40,7 +40,7 @@ COPY libs/ libs/
 RUN cargo build --release --package sakaloka-ockam
 
 # -- Stage 2: Runtime -----------------------------------------
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 \

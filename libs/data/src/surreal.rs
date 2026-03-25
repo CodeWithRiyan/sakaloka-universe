@@ -417,7 +417,10 @@ impl SurrealClient {
         product.ok_or_else(|| SurrealError::Query("Product not found or update failed".into()))
     }
 
-    /// Deletes a product.
+    /// Soft-deletes a product by setting `deleted_at` to the current timestamp.
+    ///
+    /// The product remains in the database but is excluded from list and count
+    /// queries that filter on `deleted_at = NONE`.
     pub async fn delete_product(&self, id: &str) -> Result<(), SurrealError> {
         let tid = surrealdb_types::RecordId::new(
             "product",
@@ -425,7 +428,7 @@ impl SurrealClient {
         );
 
         self.db
-            .query("DELETE $id")
+            .query("UPDATE $id SET deleted_at = time::now()")
             .bind(("id", tid))
             .await
             .map_err(|e| SurrealError::Query(e.to_string()))?
@@ -667,6 +670,36 @@ impl SurrealClient {
             .map_err(|e| SurrealError::Query(e.to_string()))?;
 
         user.ok_or_else(|| SurrealError::Query("User not found or update failed".into()))
+    }
+
+    /// Switches a user's active organization.
+    ///
+    /// # Errors
+    /// Returns [`SurrealError::Query`] if the update fails.
+    pub async fn update_user_organization(
+        &self,
+        user_id: &str,
+        organization_id: &str,
+    ) -> Result<(), SurrealError> {
+        let user_tid = surrealdb_types::RecordId::new(
+            "user",
+            surrealdb_types::RecordIdKey::String(user_id.replace("user:", "")),
+        );
+        let org_tid = surrealdb_types::RecordId::new(
+            "organization",
+            surrealdb_types::RecordIdKey::String(organization_id.replace("organization:", "")),
+        );
+
+        self.db
+            .query("UPDATE $id SET organization_id = $org_id")
+            .bind(("id", user_tid))
+            .bind(("org_id", org_tid))
+            .await
+            .map_err(|e| SurrealError::Query(e.to_string()))?
+            .check()
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+
+        Ok(())
     }
 
     /// Updates a user's last login timestamp to now.
@@ -1203,6 +1236,41 @@ impl SurrealClient {
         Ok(cat)
     }
 
+    /// Fetch multiple categories by their IDs in a single query.
+    ///
+    /// # Errors
+    /// Returns [`SurrealError::Query`] if the query fails.
+    pub async fn find_categories_by_ids(
+        &self,
+        ids: &[String],
+    ) -> Result<Vec<sakaloka_core::models::category::Category>, SurrealError> {
+        if ids.is_empty() {
+            return Ok(vec![]);
+        }
+        let tids: Vec<surrealdb_types::RecordId> = ids
+            .iter()
+            .map(|id| {
+                surrealdb_types::RecordId::new(
+                    "category",
+                    surrealdb_types::RecordIdKey::String(id.replace("category:", "")),
+                )
+            })
+            .collect();
+
+        let mut result = self
+            .db
+            .query("SELECT * FROM $ids")
+            .bind(("ids", tids))
+            .await
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+
+        let cats: Vec<sakaloka_core::models::category::Category> = result
+            .take(0)
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+
+        Ok(cats)
+    }
+
     /// Lists categories with pagination, optional search, and sorting.
     ///
     /// # Errors
@@ -1479,6 +1547,41 @@ impl SurrealClient {
             .map_err(|e| SurrealError::Query(e.to_string()))?;
 
         Ok(brand)
+    }
+
+    /// Fetch multiple brands by their IDs in a single query.
+    ///
+    /// # Errors
+    /// Returns [`SurrealError::Query`] if the query fails.
+    pub async fn find_brands_by_ids(
+        &self,
+        ids: &[String],
+    ) -> Result<Vec<sakaloka_core::models::brand::Brand>, SurrealError> {
+        if ids.is_empty() {
+            return Ok(vec![]);
+        }
+        let tids: Vec<surrealdb_types::RecordId> = ids
+            .iter()
+            .map(|id| {
+                surrealdb_types::RecordId::new(
+                    "brand",
+                    surrealdb_types::RecordIdKey::String(id.replace("brand:", "")),
+                )
+            })
+            .collect();
+
+        let mut result = self
+            .db
+            .query("SELECT * FROM $ids")
+            .bind(("ids", tids))
+            .await
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+
+        let brands: Vec<sakaloka_core::models::brand::Brand> = result
+            .take(0)
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+
+        Ok(brands)
     }
 
     /// Lists brands with pagination, optional search, and sorting.
@@ -2186,20 +2289,26 @@ impl SurrealClient {
         Ok(row.map(|r| r.count).unwrap_or(0))
     }
 
-    /// Lists inventory items where available stock is at or below the minimum level.
+    /// Lists inventory items where available stock is at or below the minimum
+    /// level, with pagination.
     ///
     /// # Errors
     /// Returns [`SurrealError::Query`] if the query fails.
     pub async fn list_low_stock(
         &self,
+        limit: u64,
+        start: u64,
     ) -> Result<Vec<sakaloka_core::models::inventory::InventoryItem>, SurrealError> {
         let mut result = self
             .db
             .query(
                 "SELECT * FROM inventory_item \
                  WHERE quantity_available <= min_stock_level \
-                 ORDER BY quantity_available ASC",
+                 ORDER BY quantity_available ASC \
+                 LIMIT $limit START $start",
             )
+            .bind(("limit", limit))
+            .bind(("start", start))
             .await
             .map_err(|e| SurrealError::Query(e.to_string()))?;
 
@@ -2208,6 +2317,34 @@ impl SurrealClient {
             .map_err(|e| SurrealError::Query(e.to_string()))?;
 
         Ok(items)
+    }
+
+    /// Counts inventory items where available stock is at or below the minimum
+    /// level.
+    ///
+    /// # Errors
+    /// Returns [`SurrealError::Query`] if the query fails.
+    pub async fn count_low_stock(&self) -> Result<u64, SurrealError> {
+        #[derive(serde::Deserialize, SurrealValueMacro)]
+        struct CountResult {
+            count: u64,
+        }
+
+        let mut result = self
+            .db
+            .query(
+                "SELECT count() AS count FROM inventory_item \
+                 WHERE quantity_available <= min_stock_level \
+                 GROUP ALL",
+            )
+            .await
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+
+        let row: Option<CountResult> = result
+            .take(0)
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+
+        Ok(row.map(|r| r.count).unwrap_or(0))
     }
 
     /// Creates a new inventory item for a product within an organization.

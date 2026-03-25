@@ -5,35 +5,34 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use sakaloka_secure::rbac::{guard::RequireScope, Scope};
 
 use crate::app::AppState;
 use crate::error::ApiError;
 use crate::views::{
     category::{CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest},
-    ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
+    slugify, ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse,
+    PaginationParams,
 };
 
 /// Registers all `/products/categories` routes (nested under `/api` by the
 /// top-level router).
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/products/categories", get(list).post(create))
+        .route("/products/categories", get(list))
+        .route("/products/categories/{id}", get(show))
+        .route(
+            "/products/categories",
+            axum::routing::post(create).layer(RequireScope::new(Scope::EntityWrite)),
+        )
         .route(
             "/products/categories/{id}",
-            get(show).patch(update).delete(remove),
+            axum::routing::patch(update).layer(RequireScope::new(Scope::EntityWrite)),
         )
-}
-
-/// Produce a URL-friendly slug from a name.
-fn slugify(name: &str) -> String {
-    name.to_lowercase()
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '-' })
-        .collect::<String>()
-        .split('-')
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join("-")
+        .route(
+            "/products/categories/{id}",
+            axum::routing::delete(remove).layer(RequireScope::new(Scope::EntityDelete)),
+        )
 }
 
 /// `GET /api/products/categories` — list categories with pagination and
@@ -130,12 +129,25 @@ async fn create(
 
     let slug = slugify(&payload.name);
 
+    // Resolve organization from the caller's user record
+    let caller = state
+        .db
+        .find_user_by_id(&claims.sub)
+        .await
+        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to find caller")))?
+        .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Caller not found")))?;
+    let org_id = caller
+        .organization_id
+        .as_ref()
+        .map(crate::views::record_id_to_string)
+        .unwrap_or_default();
+
     let result = state
         .db
         .create_category(
             &payload.name,
             &slug,
-            &claims.sub, // org_id — using caller's ID as fallback
+            &org_id,
             payload.description.as_deref(),
             payload.parent_id.as_deref(),
             payload.image_url.as_deref(),

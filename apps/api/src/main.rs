@@ -12,7 +12,8 @@ async fn main() -> anyhow::Result<()> {
     let db_url =
         std::env::var("SURREALDB_URL").unwrap_or_else(|_| "ws://127.0.0.1:58000".to_string());
     let db_user = std::env::var("SURREALDB_USER").unwrap_or_else(|_| "root".to_string());
-    let db_pass = std::env::var("SURREALDB_PASS").unwrap_or_else(|_| "sakaloka-dev".to_string());
+    let db_pass = std::env::var("SURREALDB_PASS")
+        .expect("SURREALDB_PASS must be set — use .env file locally or set in Docker environment");
 
     tracing::info!("connecting to SurrealDB at {}", db_url);
     let db = sakaloka_data::surreal::SurrealClient::connect(&db_url).await?;

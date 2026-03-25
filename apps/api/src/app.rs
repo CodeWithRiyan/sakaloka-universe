@@ -8,6 +8,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
 use crate::controllers;
+use crate::middleware::auth_middleware;
 
 /// Shared application state injected into every handler.
 #[derive(Clone)]
@@ -33,8 +34,12 @@ pub fn router(state: AppState) -> Router {
         .allow_headers(Any)
         .max_age(std::time::Duration::from_secs(3600));
 
-    let api_routes = Router::new()
-        .merge(controllers::auth::routes())
+    // Public routes — no auth required (login, register, refresh).
+    let public_routes = Router::new().merge(controllers::auth::public_routes());
+
+    // Protected routes — require valid JWT via auth_middleware.
+    let protected_routes = Router::new()
+        .merge(controllers::auth::protected_routes())
         .merge(controllers::product::routes())
         .merge(controllers::brand::routes())
         .merge(controllers::category::routes())
@@ -42,7 +47,13 @@ pub fn router(state: AppState) -> Router {
         .merge(controllers::role::routes())
         .merge(controllers::organization::routes())
         .merge(controllers::pos::routes())
-        .merge(controllers::stock::routes());
+        .merge(controllers::stock::routes())
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
+
+    let api_routes = Router::new().merge(public_routes).merge(protected_routes);
 
     Router::new()
         .route("/health", axum::routing::get(health))
@@ -59,16 +70,24 @@ async fn health() -> &'static str {
 
 /// Applies SurrealQL migrations from the `libs/data/surql/` directory.
 ///
+/// At runtime the directory is resolved from the `MIGRATIONS_DIR` environment
+/// variable (set in Docker images). When the variable is absent the
+/// compile-time `CARGO_MANIFEST_DIR` path is used as a fallback so that
+/// `cargo run` during local development still works.
+///
 /// # Errors
 ///
 /// Returns an error if any migration file cannot be read or executed.
 pub async fn run_migrations(db: &sakaloka_data::surreal::SurrealClient) -> anyhow::Result<()> {
-    let surql_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("..")
-        .join("libs")
-        .join("data")
-        .join("surql");
+    let surql_dir = match std::env::var("MIGRATIONS_DIR") {
+        Ok(dir) => std::path::PathBuf::from(dir),
+        Err(_) => std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("libs")
+            .join("data")
+            .join("surql"),
+    };
 
     let mut entries: Vec<_> = std::fs::read_dir(&surql_dir)?
         .filter_map(|e| e.ok())

@@ -1,0 +1,48 @@
+# Sakaloka-Universe — SIT environment overrides
+# SurrealDB: rocksdb persistence
+
+services:
+
+  sakaloka-api:
+    container_name: sakaloka-sit-api
+    ports:
+      - "127.0.0.1:60100:3000"
+    networks:
+      - sakaloka-sit-net
+
+  sakaloka-surrealdb:
+    container_name: sakaloka-sit-surrealdb
+    command: start --log info --user ${SURREALDB_USER:-root} --pass ${SURREALDB_PASS} rocksdb://data
+    ports:
+      - "127.0.0.1:60110:8000"
+    volumes:
+      - sakaloka-sit-surrealdb-data:/data
+    networks:
+      - sakaloka-sit-net
+
+  sakaloka-zenoh:
+    container_name: sakaloka-sit-zenoh
+    ports:
+      - "127.0.0.1:60120:7447"
+    volumes:
+      - ./config/zenoh.sit.json5:/zenoh.json5:ro
+      - ./config/zenoh-users.sit.dict:/zenoh-users.dict:ro
+    networks:
+      - sakaloka-sit-net
+
+  sakaloka-qdrant:
+    container_name: sakaloka-sit-qdrant
+    ports:
+      - "127.0.0.1:60130:6333"
+    volumes:
+      - sakaloka-sit-qdrant-data:/qdrant/storage
+    networks:
+      - sakaloka-sit-net
+
+volumes:
+  sakaloka-sit-surrealdb-data:
+  sakaloka-sit-qdrant-data:
+
+networks:
+  sakaloka-sit-net:
+    driver: bridge

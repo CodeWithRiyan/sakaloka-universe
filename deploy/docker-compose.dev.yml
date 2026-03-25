@@ -1,0 +1,45 @@
+# Sakaloka-Universe — Dev environment overrides
+# SurrealDB: memory mode (fast, no persistence needed for dev)
+
+services:
+
+  sakaloka-api:
+    container_name: sakaloka-dev-api
+    ports:
+      - "127.0.0.1:60000:3000"
+    networks:
+      - sakaloka-dev-net
+
+  sakaloka-surrealdb:
+    container_name: sakaloka-dev-surrealdb
+    command: start --log info --user ${SURREALDB_USER:-root} --pass ${SURREALDB_PASS:-sakaloka-dev} memory
+    ports:
+      - "127.0.0.1:60010:8000"
+    networks:
+      - sakaloka-dev-net
+
+  sakaloka-zenoh:
+    container_name: sakaloka-dev-zenoh
+    ports:
+      - "127.0.0.1:60020:7447"
+    volumes:
+      - ./config/zenoh.dev.json5:/zenoh.json5:ro
+      - ./config/zenoh-users.dev.dict:/zenoh-users.dict:ro
+    networks:
+      - sakaloka-dev-net
+
+  sakaloka-qdrant:
+    container_name: sakaloka-dev-qdrant
+    ports:
+      - "127.0.0.1:60030:6333"
+    volumes:
+      - sakaloka-dev-qdrant-data:/qdrant/storage
+    networks:
+      - sakaloka-dev-net
+
+volumes:
+  sakaloka-dev-qdrant-data:
+
+networks:
+  sakaloka-dev-net:
+    driver: bridge

@@ -1,0 +1,48 @@
+# Sakaloka-Universe — Demo environment overrides
+# SurrealDB: rocksdb persistence
+
+services:
+
+  sakaloka-api:
+    container_name: sakaloka-demo-api
+    ports:
+      - "127.0.0.1:60200:3000"
+    networks:
+      - sakaloka-demo-net
+
+  sakaloka-surrealdb:
+    container_name: sakaloka-demo-surrealdb
+    command: start --log info --user ${SURREALDB_USER:-root} --pass ${SURREALDB_PASS} rocksdb://data
+    ports:
+      - "127.0.0.1:60210:8000"
+    volumes:
+      - sakaloka-demo-surrealdb-data:/data
+    networks:
+      - sakaloka-demo-net
+
+  sakaloka-zenoh:
+    container_name: sakaloka-demo-zenoh
+    ports:
+      - "127.0.0.1:60220:7447"
+    volumes:
+      - ./config/zenoh.demo.json5:/zenoh.json5:ro
+      - ./config/zenoh-users.demo.dict:/zenoh-users.dict:ro
+    networks:
+      - sakaloka-demo-net
+
+  sakaloka-qdrant:
+    container_name: sakaloka-demo-qdrant
+    ports:
+      - "127.0.0.1:60230:6333"
+    volumes:
+      - sakaloka-demo-qdrant-data:/qdrant/storage
+    networks:
+      - sakaloka-demo-net
+
+volumes:
+  sakaloka-demo-surrealdb-data:
+  sakaloka-demo-qdrant-data:
+
+networks:
+  sakaloka-demo-net:
+    driver: bridge

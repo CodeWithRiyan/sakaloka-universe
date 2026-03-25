@@ -82,7 +82,7 @@ services:
   #       Use the surreal CLI that IS present in the image.
   # ─────────────────────────────────────────────────────────────
   surrealdb:
-    image: surrealdb/surrealdb:latest
+    image: surrealdb/surrealdb:v3.0.4
     command: start --log info --user ${SURREALDB_USER:-root} --pass ${SURREALDB_PASS:-sakaloka-dev} memory
     ports:
       - "127.0.0.1:58000:8000"

@@ -1,0 +1,71 @@
+# =============================================================
+# Sakaloka-Universe — Base Docker Compose for Server Deployment
+#
+# Usage: docker compose -f docker-compose.base.yml -f docker-compose.<env>.yml up -d
+#
+# This file defines shared service structure. Per-environment
+# overrides (ports, volumes, storage mode) live in the env files.
+# =============================================================
+
+services:
+
+  sakaloka-api:
+    image: ghcr.io/codewithriyan/sakaloka-api:${SAKALOKA_ENV:-dev}
+    environment:
+      - RUST_LOG=${RUST_LOG:-info}
+      - SAKALOKA_JWT_SECRET=${SAKALOKA_JWT_SECRET}
+      - SURREALDB_URL=ws://sakaloka-surrealdb:8000
+      - SURREALDB_USER=${SURREALDB_USER:-root}
+      - SURREALDB_PASS=${SURREALDB_PASS}
+      - QDRANT_URL=http://sakaloka-qdrant:6333
+      - QDRANT_MASTER_KEY=${QDRANT_MASTER_KEY}
+      - ZENOH_CONNECT=tcp/sakaloka-zenoh:7447
+      - ZENOH_USER=${ZENOH_USER:-earth}
+      - ZENOH_PASS=${ZENOH_PASS}
+    depends_on:
+      sakaloka-surrealdb:
+        condition: service_healthy
+      sakaloka-qdrant:
+        condition: service_healthy
+      sakaloka-zenoh:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  sakaloka-surrealdb:
+    image: surrealdb/surrealdb:v3.0.4
+    healthcheck:
+      test: ["CMD", "/surreal", "is-ready", "--log", "none"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  sakaloka-zenoh:
+    image: eclipse/zenoh:1.0.0
+    command: ["--config", "/zenoh.json5", "--no-multicast-scouting"]
+    healthcheck:
+      test: ["CMD", "/zenohd", "--version"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  sakaloka-qdrant:
+    image: qdrant/qdrant:v1.13.6
+    environment:
+      - QDRANT__SERVICE__API_KEY=${QDRANT_MASTER_KEY}
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/6333 && echo -e 'GET /readyz HTTP/1.0\r\n\r\n' >&3 && cat <&3 | grep -q '200'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped

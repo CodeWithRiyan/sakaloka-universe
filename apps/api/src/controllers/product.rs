@@ -5,6 +5,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use sakaloka_secure::rbac::{guard::RequireScope, Scope};
 
 use crate::app::AppState;
 use crate::error::ApiError;
@@ -20,8 +21,20 @@ use crate::views::{
 /// router).
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/products", get(list).post(create))
-        .route("/products/{id}", get(show).patch(update).delete(remove))
+        .route("/products", get(list))
+        .route("/products/{id}", get(show))
+        .route(
+            "/products",
+            axum::routing::post(create).layer(RequireScope::new(Scope::EntityWrite)),
+        )
+        .route(
+            "/products/{id}",
+            axum::routing::patch(update).layer(RequireScope::new(Scope::EntityWrite)),
+        )
+        .route(
+            "/products/{id}",
+            axum::routing::delete(remove).layer(RequireScope::new(Scope::EntityDelete)),
+        )
 }
 
 /// `GET /api/products` — list products with pagination, search, and sorting.
@@ -55,43 +68,58 @@ async fn list(
             ApiError::Internal(anyhow::anyhow!("Failed to list products"))
         })?;
 
-    // Resolve categories and brands
-    let mut responses = Vec::with_capacity(items.len());
-    for item in &items {
-        let cat = if let Some(ref cat_id) = item.category_id {
-            let cat_key = record_id_to_string(cat_id);
-            state
-                .db
-                .find_category(&cat_key)
-                .await
-                .ok()
-                .flatten()
-                .map(|c| CategorySummary {
-                    id: record_id_to_string(&c.id),
-                    name: c.name,
-                })
-        } else {
-            None
-        };
+    // Batch-fetch related categories and brands (avoids N+1 queries)
+    let cat_ids: Vec<String> = items
+        .iter()
+        .filter_map(|p| p.category_id.as_ref().map(record_id_to_string))
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+    let brand_ids: Vec<String> = items
+        .iter()
+        .filter_map(|p| p.brand_id.as_ref().map(record_id_to_string))
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
 
-        let brand = if let Some(ref brand_id) = item.brand_id {
-            let brand_key = record_id_to_string(brand_id);
-            state
-                .db
-                .find_brand(&brand_key)
-                .await
-                .ok()
-                .flatten()
-                .map(|b| BrandSummary {
-                    id: record_id_to_string(&b.id),
-                    name: b.name,
-                })
-        } else {
-            None
-        };
+    let cat_map: std::collections::HashMap<String, String> = state
+        .db
+        .find_categories_by_ids(&cat_ids)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|c| (record_id_to_string(&c.id), c.name))
+        .collect();
 
-        responses.push(ProductResponse::from_model(item, cat, brand));
-    }
+    let brand_map: std::collections::HashMap<String, String> = state
+        .db
+        .find_brands_by_ids(&brand_ids)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|b| (record_id_to_string(&b.id), b.name))
+        .collect();
+
+    let responses: Vec<ProductResponse> = items
+        .iter()
+        .map(|item| {
+            let cat = item.category_id.as_ref().and_then(|cid| {
+                let key = record_id_to_string(cid);
+                cat_map.get(&key).map(|name| CategorySummary {
+                    id: key,
+                    name: name.clone(),
+                })
+            });
+            let brand = item.brand_id.as_ref().and_then(|bid| {
+                let key = record_id_to_string(bid);
+                brand_map.get(&key).map(|name| BrandSummary {
+                    id: key,
+                    name: name.clone(),
+                })
+            });
+            ProductResponse::from_model(item, cat, brand)
+        })
+        .collect();
 
     Ok(Json(PaginatedResponse {
         success: true,
@@ -173,6 +201,19 @@ async fn create(
         ])));
     }
 
+    // Resolve organization from the caller's user record
+    let caller = state
+        .db
+        .find_user_by_id(&claims.sub)
+        .await
+        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to find caller")))?
+        .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Caller not found")))?;
+    let org_id = caller
+        .organization_id
+        .as_ref()
+        .map(record_id_to_string)
+        .unwrap_or_default();
+
     let result = state
         .db
         .create_product(
@@ -192,7 +233,7 @@ async fn create(
             payload.is_featured.unwrap_or(false),
             payload.tags.as_deref(),
             &claims.sub,
-            &claims.sub, // org_id fallback — caller's ID until org context is wired
+            &org_id,
         )
         .await
         .map_err(|e| {

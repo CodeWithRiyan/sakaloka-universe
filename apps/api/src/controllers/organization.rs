@@ -5,6 +5,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use sakaloka_secure::rbac::{guard::RequireScope, Scope};
 
 use crate::app::AppState;
 use crate::error::ApiError;
@@ -17,14 +18,22 @@ use crate::views::{
 /// Registers all `/organizations` routes (nested under `/api` by the top-level
 /// router).
 pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/organizations", get(list).post(create))
+    let read_routes = Router::new()
+        .route("/organizations", get(list))
         .route("/organizations/current", get(current))
+        .route("/organizations/{id}", get(show))
+        .route_layer(RequireScope::new(Scope::EntityRead));
+
+    let write_routes = Router::new()
+        .route("/organizations", post(create))
         .route("/organizations/select", post(select))
         .route(
             "/organizations/{id}",
-            get(show).patch(update).delete(remove),
+            axum::routing::patch(update).delete(remove),
         )
+        .route_layer(RequireScope::new(Scope::EntityWrite));
+
+    Router::new().merge(read_routes).merge(write_routes)
 }
 
 /// `GET /api/organizations` — list organizations the caller has access to.
@@ -131,17 +140,10 @@ async fn select(
         None => return Ok(Json(ApiResponse::not_found("Organization"))),
     };
 
-    // Update the user's organization_id by updating user record
-    // We use update_user with just the org context change
-    // Since update_user doesn't directly accept org_id, we need to use a
-    // different approach — build an update JSON
-    let updates = serde_json::json!({
-        "organization_id": payload.organization_id,
-    });
-
+    // Update the user's organization_id
     state
         .db
-        .update_organization(&claims.sub, &updates)
+        .update_user_organization(&claims.sub, &payload.organization_id)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to switch organization");

@@ -1,0 +1,16 @@
+# Sakaloka-Universe — Local testing override
+#
+# Builds the API from source instead of pulling from ghcr.io.
+# Usage:
+#   cd deploy
+#   docker compose -f docker-compose.base.yml -f docker-compose.dev.yml -f docker-compose.local.yml up -d
+#
+# Or use the helper script: ./deploy.sh local
+
+services:
+
+  sakaloka-api:
+    image: sakaloka-api:local
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile

@@ -8219,7 +8219,6 @@ dependencies = [
  "sakaloka-secure",
  "serde",
  "serde_json",
- "sha2",
  "surrealdb",
  "tokio",
  "tower 0.5.3",

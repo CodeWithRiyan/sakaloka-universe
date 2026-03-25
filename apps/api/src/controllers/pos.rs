@@ -5,6 +5,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use sakaloka_secure::rbac::{guard::RequireScope, Scope};
 
 use crate::app::AppState;
 use crate::error::ApiError;
@@ -16,12 +17,19 @@ use crate::views::{
 
 /// Registers all `/pos` routes (nested under `/api` by the top-level router).
 pub fn routes() -> Router<AppState> {
-    Router::new()
+    let read_routes = Router::new()
         .route("/pos/menu", get(menu))
-        .route("/pos/orders", get(list_orders).post(create_order))
+        .route("/pos/orders", get(list_orders))
         .route("/pos/orders/active", get(active_orders))
         .route("/pos/orders/history", get(order_history))
-        .route("/pos/orders/{id}", get(show_order).patch(update_order))
+        .route("/pos/orders/{id}", get(show_order));
+
+    let write_routes = Router::new()
+        .route("/pos/orders", axum::routing::post(create_order))
+        .route("/pos/orders/{id}", axum::routing::patch(update_order))
+        .route_layer(RequireScope::new(Scope::EntityWrite));
+
+    Router::new().merge(read_routes).merge(write_routes)
 }
 
 /// `GET /api/pos/menu` — list products available for the POS order screen.
@@ -52,32 +60,40 @@ async fn menu(
             ApiError::Internal(anyhow::anyhow!("Failed to list menu items"))
         })?;
 
-    let mut responses = Vec::with_capacity(items.len());
-    for item in &items {
-        let cat_name = if let Some(ref cat_id) = item.category_id {
-            let cat_key = record_id_to_string(cat_id);
-            state
-                .db
-                .find_category(&cat_key)
-                .await
-                .ok()
-                .flatten()
-                .map(|c| c.name)
-        } else {
-            None
-        };
+    // Batch-fetch categories (avoids N+1 queries)
+    let cat_ids: Vec<String> = items
+        .iter()
+        .filter_map(|p| p.category_id.as_ref().map(record_id_to_string))
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
 
-        responses.push(MenuResponse {
-            id: record_id_to_string(&item.id),
-            name: item.name.clone(),
-            sku: item.sku.clone(),
-            base_price: item.base_price,
-            image_url: item.image_url.clone(),
-            category_id: item.category_id.as_ref().map(record_id_to_string),
-            category_name: cat_name,
-            is_featured: item.is_featured,
-        });
-    }
+    let cat_map: std::collections::HashMap<String, String> = state
+        .db
+        .find_categories_by_ids(&cat_ids)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|c| (record_id_to_string(&c.id), c.name))
+        .collect();
+
+    let responses: Vec<MenuResponse> = items
+        .iter()
+        .map(|item| {
+            let cat_key = item.category_id.as_ref().map(record_id_to_string);
+            let cat_name = cat_key.as_ref().and_then(|k| cat_map.get(k)).cloned();
+            MenuResponse {
+                id: record_id_to_string(&item.id),
+                name: item.name.clone(),
+                sku: item.sku.clone(),
+                base_price: item.base_price,
+                image_url: item.image_url.clone(),
+                category_id: cat_key,
+                category_name: cat_name,
+                is_featured: item.is_featured,
+            }
+        })
+        .collect();
 
     Ok(Json(PaginatedResponse {
         success: true,
@@ -257,20 +273,11 @@ async fn show_order(
     Ok(Json(ApiResponse::ok(response, "Order retrieved")))
 }
 
-/// Generate a unique order number with the format `ORD-YYYYMMDD-XXXX`.
+/// Generate a unique order number with the format `ORD-YYYYMMDD-XXXXXXXX`.
 fn generate_order_number() -> String {
     let date = chrono::Utc::now().format("%Y%m%d");
-    let random: u16 = rand_u16();
-    format!("ORD-{date}-{random:04}")
-}
-
-/// Generate a pseudo-random u16 without pulling in the `rand` crate.
-fn rand_u16() -> u16 {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    let mut hasher = DefaultHasher::new();
-    std::time::SystemTime::now().hash(&mut hasher);
-    (hasher.finish() % 10000) as u16
+    let suffix = &uuid::Uuid::new_v4().to_string()[..8];
+    format!("ORD-{date}-{suffix}")
 }
 
 /// `POST /api/pos/orders` — create a new order.
