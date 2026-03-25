@@ -2,9 +2,9 @@
 
 use std::sync::Arc;
 
-use axum::http::Method;
+use axum::http::{HeaderValue, Method};
 use axum::Router;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::controllers;
@@ -21,8 +21,15 @@ pub struct AppState {
 
 /// Builds the top-level Axum router with all routes and middleware.
 pub fn router(state: AppState) -> Router {
+    let allowed_origins = std::env::var("CORS_ORIGINS")
+        .unwrap_or_else(|_| "http://localhost:5173,http://localhost:1420".to_string());
+    let origins: Vec<HeaderValue> = allowed_origins
+        .split(',')
+        .filter_map(|s| s.trim().parse().ok())
+        .collect();
+
     let cors = CorsLayer::new()
-        .allow_origin(Any)
+        .allow_origin(origins)
         .allow_methods([
             Method::GET,
             Method::POST,
@@ -31,7 +38,11 @@ pub fn router(state: AppState) -> Router {
             Method::DELETE,
             Method::OPTIONS,
         ])
-        .allow_headers(Any)
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::ACCEPT,
+        ])
         .max_age(std::time::Duration::from_secs(3600));
 
     // Public routes — no auth required (login, register, refresh).
@@ -80,7 +91,9 @@ async fn health() -> &'static str {
 /// Returns an error if any migration file cannot be read or executed.
 pub async fn run_migrations(db: &sakaloka_data::surreal::SurrealClient) -> anyhow::Result<()> {
     let surql_dir = match std::env::var("MIGRATIONS_DIR") {
-        Ok(dir) => std::path::PathBuf::from(dir),
+        Ok(dir) => std::path::PathBuf::from(dir)
+            .canonicalize()
+            .map_err(|e| anyhow::anyhow!("Invalid MIGRATIONS_DIR: {e}"))?,
         Err(_) => std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("..")

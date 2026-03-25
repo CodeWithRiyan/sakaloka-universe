@@ -224,7 +224,7 @@ async fn adjust(
         .organization_id
         .as_ref()
         .map(record_id_to_string)
-        .unwrap_or_default();
+        .ok_or_else(|| ApiError::BadRequest("User has no organization assigned".to_string()))?;
 
     // Find or create inventory item for this product + organization
     let inventory_item = state

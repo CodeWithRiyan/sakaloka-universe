@@ -11,7 +11,7 @@ pub struct LoginRequest {
     #[schema(example = "admin@sakaloka.id")]
     pub email: String,
     /// Plaintext password.
-    #[schema(example = "sakaloka-dev")]
+    #[schema(example = "sakaloka-dev-01")]
     pub password: String,
 }
 

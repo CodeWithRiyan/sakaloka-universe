@@ -127,7 +127,9 @@ impl SurrealClient {
     ) -> Result<Option<sakaloka_core::models::user::User>, SurrealError> {
         let sid = surrealdb_types::RecordId::new(
             "session",
-            surrealdb_types::RecordIdKey::String(session_id.as_str().replace("session:", "")),
+            surrealdb_types::RecordIdKey::String(
+                session_id.to_record_id_string().replace("session:", ""),
+            ),
         );
 
         let mut result = self
@@ -162,7 +164,9 @@ impl SurrealClient {
         );
         let sid = surrealdb_types::RecordId::new(
             "session",
-            surrealdb_types::RecordIdKey::String(session_id.as_str().replace("session:", "")),
+            surrealdb_types::RecordIdKey::String(
+                session_id.to_record_id_string().replace("session:", ""),
+            ),
         );
 
         self.db.query("
@@ -207,6 +211,41 @@ impl SurrealClient {
             .map_err(|e| SurrealError::Query(e.to_string()))?;
 
         Ok(product)
+    }
+
+    /// Fetch multiple products by their IDs in a single query.
+    ///
+    /// # Errors
+    /// Returns [`SurrealError::Query`] if the query fails.
+    pub async fn find_products_by_ids(
+        &self,
+        ids: &[String],
+    ) -> Result<Vec<sakaloka_core::models::product::Product>, SurrealError> {
+        if ids.is_empty() {
+            return Ok(vec![]);
+        }
+        let tids: Vec<surrealdb_types::RecordId> = ids
+            .iter()
+            .map(|id| {
+                surrealdb_types::RecordId::new(
+                    "product",
+                    surrealdb_types::RecordIdKey::String(id.replace("product:", "")),
+                )
+            })
+            .collect();
+
+        let mut result = self
+            .db
+            .query("SELECT * FROM product WHERE id IN $ids")
+            .bind(("ids", tids))
+            .await
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+
+        let products: Vec<sakaloka_core::models::product::Product> = result
+            .take(0)
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+
+        Ok(products)
     }
 
     /// Lists products with pagination, search, and sorting.
@@ -723,6 +762,23 @@ impl SurrealClient {
         Ok(())
     }
 
+    /// Deletes a user record by ID.
+    ///
+    /// # Errors
+    /// Returns [`SurrealError::Query`] if the deletion fails.
+    pub async fn delete_user(&self, id: &str) -> Result<(), SurrealError> {
+        let tid = surrealdb_types::RecordId::new(
+            "user",
+            surrealdb_types::RecordIdKey::String(id.replace("user:", "")),
+        );
+        self.db
+            .query("DELETE $id")
+            .bind(("id", tid))
+            .await
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+        Ok(())
+    }
+
     // =====================================================================
     // Organization CRUD
     // =====================================================================
@@ -928,6 +984,23 @@ impl SurrealClient {
             .check()
             .map_err(|e| SurrealError::Query(e.to_string()))?;
 
+        Ok(())
+    }
+
+    /// Deletes an organization record by ID.
+    ///
+    /// # Errors
+    /// Returns [`SurrealError::Query`] if the deletion fails.
+    pub async fn delete_organization(&self, id: &str) -> Result<(), SurrealError> {
+        let tid = surrealdb_types::RecordId::new(
+            "organization",
+            surrealdb_types::RecordIdKey::String(id.replace("organization:", "")),
+        );
+        self.db
+            .query("DELETE $id")
+            .bind(("id", tid))
+            .await
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
         Ok(())
     }
 
@@ -1259,7 +1332,7 @@ impl SurrealClient {
 
         let mut result = self
             .db
-            .query("SELECT * FROM $ids")
+            .query("SELECT * FROM category WHERE id IN $ids")
             .bind(("ids", tids))
             .await
             .map_err(|e| SurrealError::Query(e.to_string()))?;
@@ -1572,7 +1645,7 @@ impl SurrealClient {
 
         let mut result = self
             .db
-            .query("SELECT * FROM $ids")
+            .query("SELECT * FROM brand WHERE id IN $ids")
             .bind(("ids", tids))
             .await
             .map_err(|e| SurrealError::Query(e.to_string()))?;
@@ -2619,20 +2692,28 @@ impl sakaloka_secure::tokens::rotation::RefreshStore for SurrealClient {
             sakaloka_secure::error::SecureError::JwtDecode(format!("Query error: {}", e))
         })?;
 
-        Ok(token.map(|t| {
-            let expires_at: chrono::DateTime<chrono::Utc> = t.expires_at.into();
-            let rotated_at: Option<chrono::DateTime<chrono::Utc>> = t.rotated_at.map(|r| r.into());
-            let sid_raw = match &t.session_id.key {
-                surrealdb_types::RecordIdKey::String(s) => s.clone(),
-                surrealdb_types::RecordIdKey::Uuid(u) => u.to_string(),
-                _ => format!("{:?}", t.session_id.key),
-            };
-            sakaloka_secure::tokens::rotation::RefreshTokenRecord {
-                session_id: sakaloka_secure::newtypes::SessionId::new_with_raw(&sid_raw),
-                expires_at: expires_at.timestamp() as u64,
-                rotated_at: rotated_at.map(|r| r.timestamp() as u64),
+        match token {
+            None => Ok(None),
+            Some(t) => {
+                let expires_at: chrono::DateTime<chrono::Utc> = t.expires_at.into();
+                let rotated_at: Option<chrono::DateTime<chrono::Utc>> =
+                    t.rotated_at.map(|r| r.into());
+                let sid_raw = match &t.session_id.key {
+                    surrealdb_types::RecordIdKey::String(s) => s.clone(),
+                    surrealdb_types::RecordIdKey::Uuid(u) => u.to_string(),
+                    _ => format!("{:?}", t.session_id.key),
+                };
+                let session_id = sakaloka_secure::newtypes::SessionId::new_with_raw(&sid_raw)
+                    .map_err(|e| sakaloka_secure::error::SecureError::JwtDecode(e.to_string()))?;
+                Ok(Some(
+                    sakaloka_secure::tokens::rotation::RefreshTokenRecord {
+                        session_id,
+                        expires_at: expires_at.timestamp() as u64,
+                        rotated_at: rotated_at.map(|r| r.timestamp() as u64),
+                    },
+                ))
             }
-        }))
+        }
     }
 
     async fn rotate_token(
@@ -2642,7 +2723,7 @@ impl sakaloka_secure::tokens::rotation::RefreshStore for SurrealClient {
         session_id: &sakaloka_secure::newtypes::SessionId,
         expires_at: u64,
     ) -> Result<(), sakaloka_secure::error::SecureError> {
-        let sid = surrealdb_types::RecordIdKey::String(session_id.as_str().to_string());
+        let sid = surrealdb_types::RecordIdKey::String(session_id.to_record_id_string());
         let session_thing = surrealdb_types::RecordId::new("session", sid);
         let expiry = chrono::DateTime::from_timestamp(expires_at as i64, 0).unwrap_or_default();
 
@@ -2668,7 +2749,7 @@ impl sakaloka_secure::tokens::rotation::RefreshStore for SurrealClient {
         &self,
         session_id: &sakaloka_secure::newtypes::SessionId,
     ) -> Result<(), sakaloka_secure::error::SecureError> {
-        let sid = surrealdb_types::RecordIdKey::String(session_id.as_str().to_string());
+        let sid = surrealdb_types::RecordIdKey::String(session_id.to_record_id_string());
         let session_thing = surrealdb_types::RecordId::new("session", sid);
 
         self.db

@@ -60,4 +60,8 @@ pub enum SecureError {
     /// A lock inside token store was poisoned.
     #[error("synchronization lock poisoned: {0}")]
     SyncPoisoned(String),
+
+    /// A generic input value failed validation.
+    #[error("invalid input: {0}")]
+    InvalidInput(String),
 }

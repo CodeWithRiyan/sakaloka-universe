@@ -1,1 +1,124 @@
 # Coding Standards
+
+These standards are enforced by CI and apply to all code in the workspace.
+
+## Iron Curtain Rules
+
+Every `lib.rs` and `main.rs` must include these directives:
+
+```rust
+#![deny(clippy::all)]
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::expect_used)]
+#![deny(missing_docs)]
+#![forbid(unsafe_code)]
+```
+
+See [Iron Curtain Rules](../architecture/iron-curtain.md) for full details.
+
+## Error Handling
+
+| Location | Pattern |
+|----------|---------|
+| `libs/` crates | `thiserror` for typed, structured errors |
+| `apps/api` binary | `anyhow` allowed only at the entry point |
+| Test code | `.unwrap()` allowed inside `#[test]` blocks only |
+
+All handlers return `Result<Json<ApiResponse<T>>, ApiError>`.
+
+## API Response Format
+
+All API responses use a consistent envelope:
+
+```json
+{
+  "success": true,
+  "message": "Operation successful",
+  "data": { ... }
+}
+```
+
+Error responses:
+
+```json
+{
+  "success": false,
+  "error_code": "invalid_credentials",
+  "message": "Wrong email or password",
+  "data": null
+}
+```
+
+Paginated responses add metadata:
+
+```json
+{
+  "success": true,
+  "message": "Items retrieved",
+  "data": {
+    "data": [ ... ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 150,
+      "total_pages": 8
+    },
+    "filters": { ... }
+  }
+}
+```
+
+## Database Query Rules
+
+1. **Always use parameterized queries** — never string interpolation
+2. **Batch fetch related entities** — avoid N+1 queries with `SELECT * FROM table WHERE id IN $ids`
+3. **Use `libs/data::SurrealClient`** methods — never raw queries in controllers
+
+## Naming Conventions
+
+| Item | Convention | Example |
+|------|-----------|---------|
+| Crate names | `sakaloka-{name}` | `sakaloka-api`, `sakaloka-secure` |
+| Module files | `snake_case.rs` | `user_claims.rs` |
+| Struct names | `PascalCase` | `UserClaims`, `ApiResponse` |
+| Function names | `snake_case` | `find_user_by_email` |
+| Constants | `SCREAMING_SNAKE_CASE` | `DEFAULT_TOKEN_TTL` |
+| Route paths | `kebab-case` | `/api/pos/orders/active` |
+| SurrealDB tables | `snake_case` | `order_item`, `stock_movement` |
+
+## Controller Pattern
+
+Each controller follows this structure:
+
+```rust
+// 1. Define routes
+pub fn routes() -> Router<AppState> {
+    let read_routes = Router::new()
+        .route("/items", get(list))
+        .route_layer(RequireScope::new(Scope::EntityRead));
+    let write_routes = Router::new()
+        .route("/items", post(create))
+        .route_layer(RequireScope::new(Scope::EntityWrite));
+    Router::new().merge(read_routes).merge(write_routes)
+}
+
+// 2. Handler signature
+async fn list(
+    State(state): State<AppState>,
+    Extension(claims): Extension<UserClaims>,
+    Query(params): Query<PaginationParams>,
+) -> Result<Json<PaginatedResponse<ItemResponse>>, ApiError> {
+    // 3. Extract org_id from claims (never unwrap_or_default)
+    // 4. Call state.db methods
+    // 5. Return ApiResponse
+}
+```
+
+## Documentation Rules
+
+Every public function must have:
+- A `///` doc comment describing its purpose
+- A `# Errors` section if it returns `Result`
+- A `# Examples` section with a working doctest
+
+CI enforces 100% doc coverage with: `RUSTDOCFLAGS="-D missing_docs" cargo doc --workspace --no-deps`

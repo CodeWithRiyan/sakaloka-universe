@@ -23,8 +23,10 @@
 
 - [Getting Started](./dev/getting-started.md)
 - [Workspace Structure](./dev/workspace.md)
+- [Database Schema](./dev/database.md)
 - [Docker Setup](./dev/docker.md)
 - [CI/CD Pipeline](./dev/ci.md)
+- [Deployment Guide](./dev/deployment.md)
 - [Coding Standards](./dev/standards.md)
 
 # Architecture Decision Records
@@ -35,7 +37,17 @@
 - [ADR-003: JWT Strategy](./adr/adr-003-jwt-strategy.md)
 - [ADR-004: Port Allocation Scheme](./adr/adr-004-port-allocation.md)
 
+# Venus Desktop App
+
+- [Overview](./venus/overview.md)
+- [Routing & Pages](./venus/routing.md)
+- [State Management](./venus/state.md)
+- [Authentication (Frontend)](./venus/auth.md)
+- [UI Components](./venus/components.md)
+
 # API Reference
 
-- [Earth API](./api/earth.md)
+- [Earth API (Route Map)](./api/earth.md)
 - [Health Endpoint](./api/health.md)
+- [Auth API](./api/auth.md)
+- [POS API](./api/pos.md)

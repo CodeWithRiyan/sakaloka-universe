@@ -29,6 +29,98 @@ pub fn protected_routes() -> Router<AppState> {
     Router::new().route("/auth/profile", get(profile))
 }
 
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
+/// Map a DB role name to the RBAC `Role` enum.
+fn map_rbac_role(role_name: &str) -> sakaloka_secure::rbac::Role {
+    match role_name.to_lowercase().as_str() {
+        "admin" | "owner" => sakaloka_secure::rbac::Role::Admin,
+        "editor" | "manager" | "cashier" => sakaloka_secure::rbac::Role::Editor,
+        other => {
+            tracing::warn!(role_name = %other, "Unknown role mapped to Viewer — add explicit mapping if this is intentional");
+            sakaloka_secure::rbac::Role::Viewer
+        }
+    }
+}
+
+/// Issue an access token, generate a refresh token, and persist the session.
+///
+/// Returns `(access_token, refresh_token)`.
+async fn issue_tokens_and_session(
+    state: &AppState,
+    user_id: &str,
+    role_name: &str,
+) -> Result<(String, String), ApiError> {
+    let uid = sakaloka_secure::newtypes::UserId::new(user_id)
+        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Invalid user ID")))?;
+    let session_id = sakaloka_secure::newtypes::SessionId::new();
+
+    let rbac_role = map_rbac_role(role_name);
+    let scopes: Vec<String> = sakaloka_secure::rbac::matrix::allowed_scopes(&rbac_role)
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect();
+    let scope_refs: Vec<&str> = scopes.iter().map(|s| s.as_str()).collect();
+
+    let access_token = sakaloka_secure::jwt::user_claims::issue_user_token(
+        &state.jwt_keys,
+        &uid,
+        role_name,
+        &scope_refs,
+        &session_id,
+    )
+    .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to issue JWT")))?;
+
+    let refresh_token = sakaloka_secure::newtypes::TokenId::new().to_string();
+    let token_hash = sakaloka_secure::tokens::rotation::hash_refresh_token(&refresh_token);
+
+    state
+        .db
+        .create_session(&uid, &session_id, &token_hash)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to persist session");
+            ApiError::Internal(anyhow::anyhow!("Failed to create session"))
+        })?;
+
+    Ok((access_token, refresh_token))
+}
+
+/// Build a [`UserProfile`] view from core models.
+fn build_user_profile(
+    user_id: String,
+    email: String,
+    full_name: String,
+    org: &sakaloka_core::models::organization::Organization,
+    role: &sakaloka_core::models::role::Role,
+) -> UserProfile {
+    UserProfile {
+        id: user_id,
+        email,
+        full_name,
+        organization: OrgSummary {
+            id: record_id_to_string(&org.id),
+            name: org.name.clone(),
+            org_type: org.org_type.clone(),
+        },
+        role: RoleSummary {
+            id: record_id_to_string(&role.id),
+            name: role.name.clone(),
+            permissions: role
+                .permissions
+                .clone()
+                .unwrap_or_else(|| serde_json::json!({})),
+        },
+        preferences: serde_json::json!({}),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Handlers
+// ---------------------------------------------------------------------------
+
 /// `POST /api/auth/login` — authenticate a user and return tokens.
 async fn login(
     State(state): State<AppState>,
@@ -89,7 +181,7 @@ async fn login(
         )));
     }
 
-    // 3. Load organization and role for the profile
+    // 3. Load organization and role
     let user_id_str = record_id_to_string(&user.id);
 
     let org_id = match user.organization_id.as_ref() {
@@ -111,61 +203,31 @@ async fn login(
         }
     };
 
-    let org = state.db.find_organization(&org_id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to load organization");
-        ApiError::Internal(anyhow::anyhow!("Failed to load organization"))
-    })?;
-
-    let role = state.db.find_role(&role_id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to load role");
-        ApiError::Internal(anyhow::anyhow!("Failed to load role"))
-    })?;
-
-    let org = org.ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Organization not found")))?;
-    let role = role.ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Role not found")))?;
-
-    // 4. Issue JWT
-    let uid = sakaloka_secure::newtypes::UserId::new(&user_id_str)
-        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Invalid user ID")))?;
-    let session_id = sakaloka_secure::newtypes::SessionId::new();
-
-    let rbac_role = match role.name.to_lowercase().as_str() {
-        "admin" | "owner" => sakaloka_secure::rbac::Role::Admin,
-        "editor" | "manager" | "cashier" => sakaloka_secure::rbac::Role::Editor,
-        _ => sakaloka_secure::rbac::Role::Viewer,
-    };
-
-    let scopes: Vec<String> = sakaloka_secure::rbac::matrix::allowed_scopes(&rbac_role)
-        .into_iter()
-        .map(|s| s.to_string())
-        .collect();
-    let scope_refs: Vec<&str> = scopes.iter().map(|s| s.as_str()).collect();
-
-    let access_token = sakaloka_secure::jwt::user_claims::issue_user_token(
-        &state.jwt_keys,
-        &uid,
-        &role.name,
-        &scope_refs,
-        &session_id,
-    )
-    .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to issue JWT")))?;
-
-    // 5. Generate refresh token and persist session
-    let refresh_token = sakaloka_secure::newtypes::TokenId::new().to_string();
-    let token_hash = sakaloka_secure::tokens::rotation::hash_refresh_token(&refresh_token);
-
-    if let Err(e) = state
+    let org = state
         .db
-        .create_session(&uid, &session_id, &token_hash)
+        .find_organization(&org_id)
         .await
-    {
-        tracing::error!(error = %e, "Failed to persist session during login");
-        return Err(ApiError::Internal(anyhow::anyhow!(
-            "Failed to create session"
-        )));
-    }
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to load organization");
+            ApiError::Internal(anyhow::anyhow!("Failed to load organization"))
+        })?
+        .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Organization not found")))?;
 
-    // 6. Update last_login_at (best-effort, log on failure)
+    let role = state
+        .db
+        .find_role(&role_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to load role");
+            ApiError::Internal(anyhow::anyhow!("Failed to load role"))
+        })?
+        .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Role not found")))?;
+
+    // 4. Issue tokens + persist session
+    let (access_token, refresh_token) =
+        issue_tokens_and_session(&state, &user_id_str, &role.name).await?;
+
+    // 5. Update last_login_at (best-effort)
     if let Err(e) = state.db.update_last_login(&user_id_str).await {
         tracing::warn!(error = %e, user_id = %user_id_str, "Failed to update last_login_at");
     }
@@ -173,22 +235,13 @@ async fn login(
     let response = LoginResponse {
         access_token,
         refresh_token,
-        user: UserProfile {
-            id: user_id_str,
-            email: user.email,
-            full_name: user.full_name.unwrap_or_default(),
-            organization: OrgSummary {
-                id: record_id_to_string(&org.id),
-                name: org.name,
-                org_type: org.org_type,
-            },
-            role: RoleSummary {
-                id: record_id_to_string(&role.id),
-                name: role.name,
-                permissions: role.permissions.unwrap_or_else(|| serde_json::json!({})),
-            },
-            preferences: serde_json::json!({}),
-        },
+        user: build_user_profile(
+            user_id_str,
+            user.email,
+            user.full_name.unwrap_or_default(),
+            &org,
+            &role,
+        ),
     };
 
     Ok(Json(ApiResponse::ok(response, "Login successful")))
@@ -216,29 +269,23 @@ async fn register(
         )));
     }
 
-    // 2. Validate password complexity
+    // 2. Validate and hash password
     let pw = match sakaloka_secure::newtypes::Password::new(&payload.password) {
         Ok(p) => p,
         Err(e) => return Ok(Json(ApiResponse::error("validation_error", &e.to_string()))),
     };
-
-    // 3. Hash the password
     let password_hash = sakaloka_secure::argon2::hash_password(&pw)
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to hash password")))?;
 
-    // 4. Create the organization
-    let org = state
-        .db
-        .create_organization(&payload.organization_name, "company", None)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to create organization");
-            ApiError::Internal(anyhow::anyhow!("Failed to create organization"))
-        })?;
+    // 3. Create account entities (org → role → user → set owner)
+    //    On failure after org creation, attempt best-effort cleanup.
+    let (org_id_str, role_id_str, user_id_str) =
+        create_account_entities(&state, &payload, &password_hash).await?;
 
-    let org_id_str = record_id_to_string(&org.id);
+    // 4. Issue tokens + persist session
+    let (access_token, refresh_token) =
+        issue_tokens_and_session(&state, &user_id_str, "admin").await?;
 
-    // 5. Create a default admin role for the organization
     let admin_permissions = serde_json::json!({
         "entity:read": true,
         "entity:write": true,
@@ -246,81 +293,6 @@ async fn register(
         "user:read": true,
         "user:manage": true,
     });
-    let role = state
-        .db
-        .create_role("admin", &org_id_str, &admin_permissions, true)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to create role");
-            ApiError::Internal(anyhow::anyhow!("Failed to create role"))
-        })?;
-
-    let role_id_str = record_id_to_string(&role.id);
-
-    // 6. Create the user
-    let user = state
-        .db
-        .create_user(
-            &payload.email,
-            &payload.full_name,
-            &password_hash,
-            &org_id_str,
-            &role_id_str,
-        )
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to create user");
-            ApiError::Internal(anyhow::anyhow!("Failed to create user"))
-        })?;
-
-    let user_id_str = record_id_to_string(&user.id);
-
-    // 7. Set organization owner
-    if let Err(e) = state
-        .db
-        .update_organization_owner(&org_id_str, &user_id_str)
-        .await
-    {
-        tracing::error!(error = %e, org_id = %org_id_str, "Failed to set organization owner during registration");
-        return Err(ApiError::Internal(anyhow::anyhow!(
-            "Failed to set organization owner"
-        )));
-    }
-
-    // 8. Issue tokens
-    let uid = sakaloka_secure::newtypes::UserId::new(&user_id_str)
-        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Invalid user ID")))?;
-    let session_id = sakaloka_secure::newtypes::SessionId::new();
-
-    let scopes: Vec<String> =
-        sakaloka_secure::rbac::matrix::allowed_scopes(&sakaloka_secure::rbac::Role::Admin)
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect();
-    let scope_refs: Vec<&str> = scopes.iter().map(|s| s.as_str()).collect();
-
-    let access_token = sakaloka_secure::jwt::user_claims::issue_user_token(
-        &state.jwt_keys,
-        &uid,
-        "admin",
-        &scope_refs,
-        &session_id,
-    )
-    .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to issue JWT")))?;
-
-    let refresh_token = sakaloka_secure::newtypes::TokenId::new().to_string();
-    let token_hash = sakaloka_secure::tokens::rotation::hash_refresh_token(&refresh_token);
-
-    if let Err(e) = state
-        .db
-        .create_session(&uid, &session_id, &token_hash)
-        .await
-    {
-        tracing::error!(error = %e, "Failed to persist session during registration");
-        return Err(ApiError::Internal(anyhow::anyhow!(
-            "Failed to create session"
-        )));
-    }
 
     let response = LoginResponse {
         access_token,
@@ -349,35 +321,101 @@ async fn register(
     )))
 }
 
+/// Create organization, role, user, and link owner — with best-effort cleanup
+/// on partial failure.
+async fn create_account_entities(
+    state: &AppState,
+    payload: &RegisterRequest,
+    password_hash: &str,
+) -> Result<(String, String, String), ApiError> {
+    let admin_permissions = serde_json::json!({
+        "entity:read": true,
+        "entity:write": true,
+        "entity:delete": true,
+        "user:read": true,
+        "user:manage": true,
+    });
+
+    // Step 1: Create organization
+    let org = state
+        .db
+        .create_organization(&payload.organization_name, "company", None)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to create organization");
+            ApiError::Internal(anyhow::anyhow!("Failed to create organization"))
+        })?;
+    let org_id = record_id_to_string(&org.id);
+
+    // Step 2: Create role (cleanup org on failure)
+    let role = match state
+        .db
+        .create_role("admin", &org_id, &admin_permissions, true)
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to create role, cleaning up org");
+            let _ = state.db.delete_organization(&org_id).await;
+            return Err(ApiError::Internal(anyhow::anyhow!("Failed to create role")));
+        }
+    };
+    let role_id = record_id_to_string(&role.id);
+
+    // Step 3: Create user (cleanup role + org on failure)
+    let user = match state
+        .db
+        .create_user(
+            &payload.email,
+            &payload.full_name,
+            password_hash,
+            &org_id,
+            &role_id,
+        )
+        .await
+    {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to create user, cleaning up role and org");
+            let _ = state.db.delete_role(&role_id).await;
+            let _ = state.db.delete_organization(&org_id).await;
+            return Err(ApiError::Internal(anyhow::anyhow!("Failed to create user")));
+        }
+    };
+    let user_id = record_id_to_string(&user.id);
+
+    // Step 4: Link owner (cleanup user + role + org on failure)
+    if let Err(e) = state.db.update_organization_owner(&org_id, &user_id).await {
+        tracing::error!(error = %e, "Failed to set org owner, cleaning up");
+        let _ = state.db.delete_user(&user_id).await;
+        let _ = state.db.delete_role(&role_id).await;
+        let _ = state.db.delete_organization(&org_id).await;
+        return Err(ApiError::Internal(anyhow::anyhow!(
+            "Failed to set organization owner"
+        )));
+    }
+
+    Ok((org_id, role_id, user_id))
+}
+
 /// `POST /api/auth/refresh` — exchange a refresh token for new tokens.
+///
+/// Returns 501 Not Implemented until the full rotation flow is wired up.
 async fn refresh(
     State(_state): State<AppState>,
     Json(payload): Json<RefreshRequest>,
 ) -> Result<Json<ApiResponse<()>>, ApiError> {
-    // In a full implementation, this would:
-    // 1. Hash the incoming refresh token
-    // 2. Look up the session by hashed token
-    // 3. Check for reuse (token already rotated => terminate all sessions)
-    // 4. Rotate the token
-    // 5. Issue a new access token
-
-    // For now, validate that the token is non-empty and return a structured
-    // error.  The full rotation logic lives in sakaloka_secure::tokens::rotation.
     if payload.refresh_token.is_empty() {
-        return Ok(Json(ApiResponse::error(
-            "invalid_token",
-            "Refresh token is required",
-        )));
+        return Err(ApiError::BadRequest(
+            "Refresh token is required".to_string(),
+        ));
     }
 
-    // TODO: Complete refresh token rotation once session persistence is wired
-    // up via SurrealDB.  The sakaloka_secure::tokens::rotation module handles
-    // reuse detection, token hashing, and session termination.
-
-    Ok(Json(ApiResponse::error(
-        "not_implemented",
-        "Refresh token rotation is not yet implemented",
-    )))
+    // TODO: Complete refresh token rotation once the RefreshStore trait
+    // is implemented against SurrealDB.  The rotation module in
+    // sakaloka_secure::tokens::rotation handles reuse detection, token
+    // hashing, and session termination.
+    Err(ApiError::NotImplemented)
 }
 
 /// `GET /api/auth/profile` — return the authenticated user's profile.
@@ -401,12 +439,12 @@ async fn profile(
         .organization_id
         .as_ref()
         .map(record_id_to_string)
-        .unwrap_or_default();
+        .ok_or_else(|| ApiError::BadRequest("User has no organization assigned".to_string()))?;
     let role_id = user
         .role_id
         .as_ref()
         .map(record_id_to_string)
-        .unwrap_or_default();
+        .ok_or_else(|| ApiError::BadRequest("User has no role assigned".to_string()))?;
 
     let org = state
         .db
@@ -422,22 +460,13 @@ async fn profile(
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to load role")))?
         .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Role not found")))?;
 
-    let profile = UserProfile {
-        id: user_id_str,
-        email: user.email,
-        full_name: user.full_name.unwrap_or_default(),
-        organization: OrgSummary {
-            id: record_id_to_string(&org.id),
-            name: org.name,
-            org_type: org.org_type,
-        },
-        role: RoleSummary {
-            id: record_id_to_string(&role.id),
-            name: role.name,
-            permissions: role.permissions.unwrap_or_else(|| serde_json::json!({})),
-        },
-        preferences: serde_json::json!({}),
-    };
+    let profile = build_user_profile(
+        user_id_str,
+        user.email,
+        user.full_name.unwrap_or_default(),
+        &org,
+        &role,
+    );
 
     Ok(Json(ApiResponse::ok(profile, "Profile loaded")))
 }

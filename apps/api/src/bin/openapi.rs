@@ -71,8 +71,11 @@ use utoipa::OpenApi;
 struct ApiDoc;
 
 fn main() {
-    let spec = ApiDoc::openapi()
-        .to_pretty_json()
-        .expect("Failed to generate OpenAPI JSON");
-    println!("{spec}");
+    match ApiDoc::openapi().to_pretty_json() {
+        Ok(spec) => println!("{spec}"),
+        Err(e) => {
+            eprintln!("Failed to generate OpenAPI JSON: {e}");
+            std::process::exit(1);
+        }
+    }
 }

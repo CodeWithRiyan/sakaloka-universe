@@ -149,32 +149,34 @@ async fn show(
 
     let cat = if let Some(ref cat_id) = product.category_id {
         let cat_key = record_id_to_string(cat_id);
-        state
-            .db
-            .find_category(&cat_key)
-            .await
-            .ok()
-            .flatten()
-            .map(|c| CategorySummary {
+        match state.db.find_category(&cat_key).await {
+            Ok(Some(c)) => Some(CategorySummary {
                 id: record_id_to_string(&c.id),
                 name: c.name,
-            })
+            }),
+            Ok(None) => None,
+            Err(e) => {
+                tracing::warn!(error = %e, category_id = %cat_key, "Failed to load category for product");
+                None
+            }
+        }
     } else {
         None
     };
 
     let brand = if let Some(ref brand_id) = product.brand_id {
         let brand_key = record_id_to_string(brand_id);
-        state
-            .db
-            .find_brand(&brand_key)
-            .await
-            .ok()
-            .flatten()
-            .map(|b| BrandSummary {
+        match state.db.find_brand(&brand_key).await {
+            Ok(Some(b)) => Some(BrandSummary {
                 id: record_id_to_string(&b.id),
                 name: b.name,
-            })
+            }),
+            Ok(None) => None,
+            Err(e) => {
+                tracing::warn!(error = %e, brand_id = %brand_key, "Failed to load brand for product");
+                None
+            }
+        }
     } else {
         None
     };
@@ -212,7 +214,7 @@ async fn create(
         .organization_id
         .as_ref()
         .map(record_id_to_string)
-        .unwrap_or_default();
+        .ok_or_else(|| ApiError::BadRequest("User has no organization assigned".to_string()))?;
 
     let result = state
         .db

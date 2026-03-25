@@ -14,6 +14,8 @@ pub enum ApiError {
     BadRequest(String),
     /// 401 Unauthorized.
     Unauthorized(String),
+    /// 501 Not Implemented.
+    NotImplemented,
 }
 
 impl IntoResponse for ApiError {
@@ -29,6 +31,7 @@ impl IntoResponse for ApiError {
             Self::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             Self::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             Self::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
+            Self::NotImplemented => (StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()),
         };
 
         let body = serde_json::json!({ "error": message });

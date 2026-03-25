@@ -100,7 +100,7 @@ async fn current(
         .organization_id
         .as_ref()
         .map(record_id_to_string)
-        .unwrap_or_default();
+        .ok_or_else(|| ApiError::BadRequest("User has no organization assigned".to_string()))?;
 
     let org = state.db.find_organization(&org_id).await.map_err(|e| {
         tracing::error!(error = %e, "Failed to find organization");

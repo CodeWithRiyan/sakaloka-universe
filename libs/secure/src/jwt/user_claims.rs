@@ -112,9 +112,4 @@ pub fn validate_user_token(keys: &JwtKeys, token: &str) -> Result<UserClaims, Se
         })
 }
 
-fn current_unix_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
-}
+use super::current_unix_secs;

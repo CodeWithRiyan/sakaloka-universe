@@ -57,3 +57,13 @@ impl JwtKeys {
         &self.decoding
     }
 }
+
+/// Returns the current UNIX timestamp in seconds.
+///
+/// Falls back to 0 if `SystemTime` fails (should not occur on real hardware).
+pub(crate) fn current_unix_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}

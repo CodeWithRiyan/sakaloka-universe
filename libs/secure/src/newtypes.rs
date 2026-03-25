@@ -105,12 +105,20 @@ impl SessionId {
     }
 
     /// Creates a [`SessionId`] from a raw string (e.g. from SurrealDB record ID).
-    pub fn new_with_raw(raw: &str) -> Self {
-        Self(Uuid::parse_str(raw.trim_start_matches("session:")).unwrap_or_else(|_| Uuid::new_v4()))
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SecureError::InvalidInput`] if the raw value is not a valid UUID.
+    pub fn new_with_raw(raw: &str) -> Result<Self, SecureError> {
+        Uuid::parse_str(raw.trim_start_matches("session:"))
+            .map(Self)
+            .map_err(|_| SecureError::InvalidInput(format!("Invalid session ID: {raw}")))
     }
 
-    /// Returns the raw session ID string.
-    pub fn as_str(&self) -> String {
+    /// Returns the SurrealDB-prefixed session ID string.
+    ///
+    /// Note: this allocates a new `String` on every call.
+    pub fn to_record_id_string(&self) -> String {
         format!("session:{}", self.0)
     }
 }
@@ -325,7 +333,7 @@ impl std::fmt::Display for Username {
 ///
 /// This type holds the plaintext only long enough to hash it.
 /// It is **never** stored, serialized, or logged.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Password(String);
 
 impl Password {

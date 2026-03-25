@@ -140,7 +140,7 @@ async fn create(
         .organization_id
         .as_ref()
         .map(crate::views::record_id_to_string)
-        .unwrap_or_default();
+        .ok_or_else(|| ApiError::BadRequest("User has no organization assigned".to_string()))?;
 
     let result = state
         .db

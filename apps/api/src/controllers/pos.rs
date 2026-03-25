@@ -15,6 +15,15 @@ use crate::views::{
     PaginationParams,
 };
 
+/// A resolved order line item with named fields.
+struct ResolvedOrderItem {
+    product_id: String,
+    item_name: String,
+    quantity: i32,
+    unit_price: i64,
+    total_price: i64,
+}
+
 /// Registers all `/pos` routes (nested under `/api` by the top-level router).
 pub fn routes() -> Router<AppState> {
     let read_routes = Router::new()
@@ -303,23 +312,34 @@ async fn create_order(
         .organization_id
         .as_ref()
         .map(record_id_to_string)
-        .unwrap_or_default();
+        .ok_or_else(|| ApiError::BadRequest("User has no organization assigned".to_string()))?;
 
     let order_number = generate_order_number();
 
-    // Resolve products and compute totals
+    // Batch-fetch all products in one query (avoids N+1)
+    let product_ids: Vec<String> = payload.items.iter().map(|i| i.product_id.clone()).collect();
+
+    let products = state
+        .db
+        .find_products_by_ids(&product_ids)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to batch-fetch products for order");
+            ApiError::Internal(anyhow::anyhow!("DB error"))
+        })?;
+
+    let product_map: std::collections::HashMap<String, &sakaloka_core::models::product::Product> =
+        products
+            .iter()
+            .map(|p| (record_id_to_string(&p.id), p))
+            .collect();
+
     let mut subtotal: i64 = 0;
-    let mut resolved_items: Vec<(String, String, i32, i64, i64)> = Vec::new();
+    let mut resolved_items: Vec<ResolvedOrderItem> = Vec::with_capacity(payload.items.len());
 
     for item_req in &payload.items {
-        let product = state
-            .db
-            .find_product(&item_req.product_id)
-            .await
-            .map_err(|_| ApiError::Internal(anyhow::anyhow!("DB error")))?;
-
-        let product = match product {
-            Some(p) => p,
+        let product = match product_map.get(&item_req.product_id) {
+            Some(p) => *p,
             None => {
                 return Ok(Json(ApiResponse::error(
                     "product_not_found",
@@ -337,14 +357,13 @@ async fn create_order(
             .clone()
             .unwrap_or_else(|| product.name.clone());
 
-        let product_id = record_id_to_string(&product.id);
-        resolved_items.push((
-            product_id,
+        resolved_items.push(ResolvedOrderItem {
+            product_id: record_id_to_string(&product.id),
             item_name,
-            item_req.quantity,
+            quantity: item_req.quantity,
             unit_price,
             total_price,
-        ));
+        });
     }
 
     // Compute tax (10% default)
@@ -375,16 +394,16 @@ async fn create_order(
     let order_id = record_id_to_string(&order.id);
 
     // Insert all order items
-    for (product_id, item_name, quantity, unit_price, total_price) in &resolved_items {
+    for item in &resolved_items {
         state
             .db
             .create_order_item(
                 &order_id,
-                product_id,
-                item_name,
-                *quantity,
-                *unit_price,
-                *total_price,
+                &item.product_id,
+                &item.item_name,
+                item.quantity,
+                item.unit_price,
+                item.total_price,
             )
             .await
             .map_err(|e| {
