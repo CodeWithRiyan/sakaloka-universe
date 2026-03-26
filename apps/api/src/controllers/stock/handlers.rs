@@ -1,41 +1,21 @@
-//! Stock / Inventory management controller.
+//! Handler functions for stock/inventory endpoints.
 
 use axum::{
     extract::{Extension, Path, Query, State},
-    routing::{get, post},
-    Json, Router,
+    Json,
 };
-use sakaloka_secure::rbac::{guard::RequireScope, Scope};
 
 use crate::app::AppState;
 use crate::error::ApiError;
+use crate::helpers::error_map::db_err;
 use crate::views::{
     record_id_to_string,
     stock::{AdjustStockRequest, StockHistoryResponse, StockResponse},
     ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
-/// Registers all `/inventory/pos-stock` routes (nested under `/api` by the
-/// top-level router).
-pub fn routes() -> Router<AppState> {
-    let read_routes = Router::new()
-        .route("/inventory/pos-stock", get(list))
-        .route("/inventory/pos-stock/low-stock", get(low_stock))
-        .route("/inventory/pos-stock/{id}", get(show))
-        .route("/inventory/pos-stock/{id}/history", get(history));
-
-    let write_routes = Router::new()
-        .route(
-            "/inventory/pos-stock/products/{product_id}/adjust",
-            post(adjust),
-        )
-        .route_layer(RequireScope::new(Scope::EntityWrite));
-
-    Router::new().merge(read_routes).merge(write_routes)
-}
-
 /// `GET /api/inventory/pos-stock` — list all stock items with pagination.
-async fn list(
+pub async fn list(
     State(state): State<AppState>,
     Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
@@ -44,10 +24,11 @@ async fn list(
     let limit = params.limit();
     let start = (page - 1) * limit;
 
-    let total = state.db.count_inventory().await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to count inventory items");
-        ApiError::Internal(anyhow::anyhow!("Failed to count inventory items"))
-    })?;
+    let total = state
+        .db
+        .count_inventory()
+        .await
+        .map_err(|e| db_err(e, "Failed to count inventory items"))?;
 
     let items = state
         .db
@@ -58,10 +39,7 @@ async fn list(
             params.is_desc(),
         )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to list inventory items");
-            ApiError::Internal(anyhow::anyhow!("Failed to list inventory items"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to list inventory items"))?;
 
     let responses: Vec<StockResponse> = items.iter().map(StockResponse::from_model).collect();
 
@@ -78,7 +56,7 @@ async fn list(
 
 /// `GET /api/inventory/pos-stock/low-stock` — list items below their minimum
 /// stock level.
-async fn low_stock(
+pub async fn low_stock(
     State(state): State<AppState>,
     Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
@@ -87,15 +65,17 @@ async fn low_stock(
     let limit = params.limit();
     let start = (page - 1) * limit;
 
-    let total = state.db.count_low_stock().await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to count low stock items");
-        ApiError::Internal(anyhow::anyhow!("Failed to count low stock items"))
-    })?;
+    let total = state
+        .db
+        .count_low_stock()
+        .await
+        .map_err(|e| db_err(e, "Failed to count low stock items"))?;
 
-    let items = state.db.list_low_stock(limit, start).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to query low stock items");
-        ApiError::Internal(anyhow::anyhow!("Failed to query low stock items"))
-    })?;
+    let items = state
+        .db
+        .list_low_stock(limit, start)
+        .await
+        .map_err(|e| db_err(e, "Failed to query low stock items"))?;
 
     let responses: Vec<StockResponse> = items.iter().map(StockResponse::from_model).collect();
 
@@ -111,14 +91,15 @@ async fn low_stock(
 }
 
 /// `GET /api/inventory/pos-stock/:id` — fetch a single stock item.
-async fn show(
+pub async fn show(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<StockResponse>>, ApiError> {
-    let item = state.db.find_inventory_item(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to find inventory item");
-        ApiError::Internal(anyhow::anyhow!("Failed to find inventory item"))
-    })?;
+    let item = state
+        .db
+        .find_inventory_item(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to find inventory item"))?;
 
     match item {
         Some(i) => Ok(Json(ApiResponse::ok(
@@ -130,19 +111,18 @@ async fn show(
 }
 
 /// `GET /api/inventory/pos-stock/:id/history` — fetch stock movement history.
-async fn history(
+pub async fn history(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<PaginatedResponse<StockHistoryResponse>>, ApiError> {
-    // Verify the inventory item exists
-    let item = state.db.find_inventory_item(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to find inventory item");
-        ApiError::Internal(anyhow::anyhow!("Failed to find inventory item"))
-    })?;
+    let item = state
+        .db
+        .find_inventory_item(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to find inventory item"))?;
 
     if item.is_none() {
-        // Return a not_found wrapped in paginated shape for consistency
         return Ok(Json(PaginatedResponse {
             success: false,
             message: "Stock item not found".to_string(),
@@ -188,13 +168,12 @@ async fn history(
 
 /// `POST /api/inventory/pos-stock/products/:product_id/adjust` — adjust stock
 /// levels.
-async fn adjust(
+pub async fn adjust(
     State(state): State<AppState>,
     Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Path(product_id): Path<String>,
     Json(payload): Json<AdjustStockRequest>,
 ) -> Result<Json<ApiResponse<StockResponse>>, ApiError> {
-    // Validate input
     let mut errors = Vec::new();
     if payload.quantity == 0 {
         errors.push("quantity must be non-zero".to_string());
@@ -213,20 +192,8 @@ async fn adjust(
         return Ok(Json(ApiResponse::validation(errors)));
     }
 
-    let caller = state
-        .db
-        .find_user_by_id(&claims.sub)
-        .await
-        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to find user")))?
-        .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("User not found")))?;
+    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims.sub).await?;
 
-    let org_id = caller
-        .organization_id
-        .as_ref()
-        .map(record_id_to_string)
-        .ok_or_else(|| ApiError::BadRequest("User has no organization assigned".to_string()))?;
-
-    // Find or create inventory item for this product + organization
     let inventory_item = state
         .db
         .find_inventory_by_product_org(&product_id, &org_id)
@@ -235,17 +202,11 @@ async fn adjust(
 
     let inventory_item = match inventory_item {
         Some(item) => item,
-        None => {
-            // Create a new inventory record for this product
-            state
-                .db
-                .create_inventory_item(&product_id, &org_id)
-                .await
-                .map_err(|e| {
-                    tracing::error!(error = %e, "Failed to create inventory item");
-                    ApiError::Internal(anyhow::anyhow!("Failed to create inventory item"))
-                })?
-        }
+        None => state
+            .db
+            .create_inventory_item(&product_id, &org_id)
+            .await
+            .map_err(|e| db_err(e, "Failed to create inventory item"))?,
     };
 
     let total_before = inventory_item.quantity_on_hand;
@@ -263,33 +224,25 @@ async fn adjust(
 
     let inv_id = record_id_to_string(&inventory_item.id);
 
-    // Record the stock movement
     state
         .db
         .create_stock_movement(
             &inv_id,
             &payload.movement_type,
             quantity_change,
-            Some(&payload.movement_type), // reference_type
-            payload.reference.as_deref(), // reference_id
+            Some(&payload.movement_type),
+            payload.reference.as_deref(),
             payload.notes.as_deref().or(Some(&payload.reason)),
             Some(claims.sub.as_str()),
         )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to create stock movement");
-            ApiError::Internal(anyhow::anyhow!("Failed to create stock movement"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to create stock movement"))?;
 
-    // Update the inventory item
     let updated = state
         .db
         .update_inventory_stock(&inv_id, total_after, total_after)
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to update inventory item");
-            ApiError::Internal(anyhow::anyhow!("Failed to update inventory item"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to update inventory item"))?;
 
     Ok(Json(ApiResponse::ok(
         StockResponse::from_model(&updated),

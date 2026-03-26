@@ -1,13 +1,13 @@
-//! Authentication controller — login, register, refresh, and profile.
+//! Handler functions for auth endpoints.
 
 use axum::{
     extract::{Extension, State},
-    routing::{get, post},
-    Json, Router,
+    Json,
 };
 
 use crate::app::AppState;
 use crate::error::ApiError;
+use crate::helpers::error_map::db_err;
 use crate::views::{
     auth::{
         LoginRequest, LoginResponse, OrgSummary, RefreshRequest, RegisterRequest, RoleSummary,
@@ -16,113 +16,10 @@ use crate::views::{
     record_id_to_string, ApiResponse,
 };
 
-/// Public `/auth` routes — no JWT required.
-pub fn public_routes() -> Router<AppState> {
-    Router::new()
-        .route("/auth/login", post(login))
-        .route("/auth/register", post(register))
-        .route("/auth/refresh", post(refresh))
-}
-
-/// Protected `/auth` routes — require valid JWT.
-pub fn protected_routes() -> Router<AppState> {
-    Router::new().route("/auth/profile", get(profile))
-}
-
-// ---------------------------------------------------------------------------
-// Shared helpers
-// ---------------------------------------------------------------------------
-
-/// Map a DB role name to the RBAC `Role` enum.
-fn map_rbac_role(role_name: &str) -> sakaloka_secure::rbac::Role {
-    match role_name.to_lowercase().as_str() {
-        "admin" | "owner" => sakaloka_secure::rbac::Role::Admin,
-        "editor" | "manager" | "cashier" => sakaloka_secure::rbac::Role::Editor,
-        other => {
-            tracing::warn!(role_name = %other, "Unknown role mapped to Viewer — add explicit mapping if this is intentional");
-            sakaloka_secure::rbac::Role::Viewer
-        }
-    }
-}
-
-/// Issue an access token, generate a refresh token, and persist the session.
-///
-/// Returns `(access_token, refresh_token)`.
-async fn issue_tokens_and_session(
-    state: &AppState,
-    user_id: &str,
-    role_name: &str,
-) -> Result<(String, String), ApiError> {
-    let uid = sakaloka_secure::newtypes::UserId::new(user_id)
-        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Invalid user ID")))?;
-    let session_id = sakaloka_secure::newtypes::SessionId::new();
-
-    let rbac_role = map_rbac_role(role_name);
-    let scopes: Vec<String> = sakaloka_secure::rbac::matrix::allowed_scopes(&rbac_role)
-        .into_iter()
-        .map(|s| s.to_string())
-        .collect();
-    let scope_refs: Vec<&str> = scopes.iter().map(|s| s.as_str()).collect();
-
-    let access_token = sakaloka_secure::jwt::user_claims::issue_user_token(
-        &state.jwt_keys,
-        &uid,
-        role_name,
-        &scope_refs,
-        &session_id,
-    )
-    .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to issue JWT")))?;
-
-    let refresh_token = sakaloka_secure::newtypes::TokenId::new().to_string();
-    let token_hash = sakaloka_secure::tokens::rotation::hash_refresh_token(&refresh_token);
-
-    state
-        .db
-        .create_session(&uid, &session_id, &token_hash)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to persist session");
-            ApiError::Internal(anyhow::anyhow!("Failed to create session"))
-        })?;
-
-    Ok((access_token, refresh_token))
-}
-
-/// Build a [`UserProfile`] view from core models.
-fn build_user_profile(
-    user_id: String,
-    email: String,
-    full_name: String,
-    org: &sakaloka_core::models::organization::Organization,
-    role: &sakaloka_core::models::role::Role,
-) -> UserProfile {
-    UserProfile {
-        id: user_id,
-        email,
-        full_name,
-        organization: OrgSummary {
-            id: record_id_to_string(&org.id),
-            name: org.name.clone(),
-            org_type: org.org_type.clone(),
-        },
-        role: RoleSummary {
-            id: record_id_to_string(&role.id),
-            name: role.name.clone(),
-            permissions: role
-                .permissions
-                .clone()
-                .unwrap_or_else(|| serde_json::json!({})),
-        },
-        preferences: serde_json::json!({}),
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Handlers
-// ---------------------------------------------------------------------------
+use super::helpers::{build_user_profile, issue_tokens_and_session};
 
 /// `POST /api/auth/login` — authenticate a user and return tokens.
-async fn login(
+pub async fn login(
     State(state): State<AppState>,
     Json(payload): Json<LoginRequest>,
 ) -> Result<Json<ApiResponse<LoginResponse>>, ApiError> {
@@ -131,10 +28,7 @@ async fn login(
         .db
         .find_user_by_email(&payload.email)
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "DB error during login lookup");
-            ApiError::Internal(anyhow::anyhow!("DB error during login lookup"))
-        })?;
+        .map_err(|e| db_err(e, "DB error during login lookup"))?;
 
     let user = match user {
         Some(u) => u,
@@ -207,20 +101,14 @@ async fn login(
         .db
         .find_organization(&org_id)
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to load organization");
-            ApiError::Internal(anyhow::anyhow!("Failed to load organization"))
-        })?
+        .map_err(|e| db_err(e, "Failed to load organization"))?
         .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Organization not found")))?;
 
     let role = state
         .db
         .find_role(&role_id)
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to load role");
-            ApiError::Internal(anyhow::anyhow!("Failed to load role"))
-        })?
+        .map_err(|e| db_err(e, "Failed to load role"))?
         .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Role not found")))?;
 
     // 4. Issue tokens + persist session
@@ -248,7 +136,7 @@ async fn login(
 }
 
 /// `POST /api/auth/register` — create a new user and organization.
-async fn register(
+pub async fn register(
     State(state): State<AppState>,
     Json(payload): Json<RegisterRequest>,
 ) -> Result<Json<ApiResponse<LoginResponse>>, ApiError> {
@@ -257,10 +145,7 @@ async fn register(
         .db
         .find_user_by_email(&payload.email)
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "DB error checking email");
-            ApiError::Internal(anyhow::anyhow!("DB error"))
-        })?;
+        .map_err(|e| db_err(e, "DB error checking email"))?;
 
     if existing.is_some() {
         return Ok(Json(ApiResponse::error(
@@ -278,7 +163,6 @@ async fn register(
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to hash password")))?;
 
     // 3. Create account entities (org → role → user → set owner)
-    //    On failure after org creation, attempt best-effort cleanup.
     let (org_id_str, role_id_str, user_id_str) =
         create_account_entities(&state, &payload, &password_hash).await?;
 
@@ -341,10 +225,7 @@ async fn create_account_entities(
         .db
         .create_organization(&payload.organization_name, "company", None)
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to create organization");
-            ApiError::Internal(anyhow::anyhow!("Failed to create organization"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to create organization"))?;
     let org_id = record_id_to_string(&org.id);
 
     // Step 2: Create role (cleanup org on failure)
@@ -401,7 +282,7 @@ async fn create_account_entities(
 /// `POST /api/auth/refresh` — exchange a refresh token for new tokens.
 ///
 /// Returns 501 Not Implemented until the full rotation flow is wired up.
-async fn refresh(
+pub async fn refresh(
     State(_state): State<AppState>,
     Json(payload): Json<RefreshRequest>,
 ) -> Result<Json<ApiResponse<()>>, ApiError> {
@@ -412,21 +293,20 @@ async fn refresh(
     }
 
     // TODO: Complete refresh token rotation once the RefreshStore trait
-    // is implemented against SurrealDB.  The rotation module in
-    // sakaloka_secure::tokens::rotation handles reuse detection, token
-    // hashing, and session termination.
+    // is implemented against SurrealDB.
     Err(ApiError::NotImplemented)
 }
 
 /// `GET /api/auth/profile` — return the authenticated user's profile.
-async fn profile(
+pub async fn profile(
     State(state): State<AppState>,
     Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
 ) -> Result<Json<ApiResponse<UserProfile>>, ApiError> {
-    let user = state.db.find_user_by_id(&claims.sub).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to find user");
-        ApiError::Internal(anyhow::anyhow!("Failed to find user"))
-    })?;
+    let user = state
+        .db
+        .find_user_by_id(&claims.sub)
+        .await
+        .map_err(|e| db_err(e, "Failed to find user"))?;
 
     let user = match user {
         Some(u) => u,

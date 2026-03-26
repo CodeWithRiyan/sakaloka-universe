@@ -1,0 +1,6 @@
+//! Stock / Inventory management controller.
+
+mod handlers;
+mod routes;
+
+pub use routes::routes;

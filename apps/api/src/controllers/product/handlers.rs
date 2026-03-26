@@ -1,14 +1,14 @@
-//! Product CRUD controller.
+//! Handler functions for product endpoints.
 
 use axum::{
     extract::{Extension, Path, Query, State},
-    routing::get,
-    Json, Router,
+    Json,
 };
-use sakaloka_secure::rbac::{guard::RequireScope, Scope};
 
 use crate::app::AppState;
 use crate::error::ApiError;
+use crate::helpers::error_map::db_err;
+use crate::helpers::patch_builder::PatchBuilder;
 use crate::views::{
     product::{
         BrandSummary, CategorySummary, CreateProductRequest, ProductResponse, UpdateProductRequest,
@@ -17,28 +17,8 @@ use crate::views::{
     PaginationParams,
 };
 
-/// Registers all `/products` routes (nested under `/api` by the top-level
-/// router).
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/products", get(list))
-        .route("/products/{id}", get(show))
-        .route(
-            "/products",
-            axum::routing::post(create).layer(RequireScope::new(Scope::EntityWrite)),
-        )
-        .route(
-            "/products/{id}",
-            axum::routing::patch(update).layer(RequireScope::new(Scope::EntityWrite)),
-        )
-        .route(
-            "/products/{id}",
-            axum::routing::delete(remove).layer(RequireScope::new(Scope::EntityDelete)),
-        )
-}
-
 /// `GET /api/products` — list products with pagination, search, and sorting.
-async fn list(
+pub async fn list(
     State(state): State<AppState>,
     Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
@@ -54,19 +34,13 @@ async fn list(
         .db
         .count_products(params.search.as_deref())
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to count products");
-            ApiError::Internal(anyhow::anyhow!("Failed to count products"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to count products"))?;
 
     let items = state
         .db
         .list_products(limit, start, params.search.as_deref(), sort_by, sort_desc)
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to list products");
-            ApiError::Internal(anyhow::anyhow!("Failed to list products"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to list products"))?;
 
     // Batch-fetch related categories and brands (avoids N+1 queries)
     let cat_ids: Vec<String> = items
@@ -133,14 +107,15 @@ async fn list(
 }
 
 /// `GET /api/products/:id` — fetch a single product.
-async fn show(
+pub async fn show(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<ProductResponse>>, ApiError> {
-    let product = state.db.find_product(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to find product");
-        ApiError::Internal(anyhow::anyhow!("Failed to find product"))
-    })?;
+    let product = state
+        .db
+        .find_product(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to find product"))?;
 
     let product = match product {
         Some(p) => p,
@@ -186,7 +161,7 @@ async fn show(
 }
 
 /// `POST /api/products` — create a new product.
-async fn create(
+pub async fn create(
     State(state): State<AppState>,
     Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Json(payload): Json<CreateProductRequest>,
@@ -203,18 +178,7 @@ async fn create(
         ])));
     }
 
-    // Resolve organization from the caller's user record
-    let caller = state
-        .db
-        .find_user_by_id(&claims.sub)
-        .await
-        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to find caller")))?
-        .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Caller not found")))?;
-    let org_id = caller
-        .organization_id
-        .as_ref()
-        .map(record_id_to_string)
-        .ok_or_else(|| ApiError::BadRequest("User has no organization assigned".to_string()))?;
+    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims.sub).await?;
 
     let result = state
         .db
@@ -238,134 +202,76 @@ async fn create(
             &org_id,
         )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to create product");
-            ApiError::Internal(anyhow::anyhow!("Failed to create product"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to create product"))?;
 
     let response = ProductResponse::from_model(&result, None, None);
     Ok(Json(ApiResponse::created(response, "Product created")))
 }
 
 /// `PATCH /api/products/:id` — update an existing product.
-async fn update(
+pub async fn update(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Json(payload): Json<UpdateProductRequest>,
 ) -> Result<Json<ApiResponse<ProductResponse>>, ApiError> {
-    // Verify the product exists
-    let existing = state.db.find_product(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to find product for update");
-        ApiError::Internal(anyhow::anyhow!("Failed to find product"))
-    })?;
+    let existing = state
+        .db
+        .find_product(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to find product"))?;
 
     if existing.is_none() {
         return Ok(Json(ApiResponse::not_found("Product")));
     }
 
-    // Build a JSON value with only the provided fields
-    let mut updates = serde_json::Map::new();
-    if let Some(name) = payload.name {
-        updates.insert("name".to_string(), serde_json::Value::String(name));
-    }
-    if let Some(sku) = payload.sku {
-        updates.insert("sku".to_string(), serde_json::Value::String(sku));
-    }
-    if let Some(base_price) = payload.base_price {
-        updates.insert(
-            "base_price".to_string(),
-            serde_json::Value::Number(base_price.into()),
-        );
-    }
-    if let Some(description) = payload.description {
-        updates.insert(
-            "description".to_string(),
-            serde_json::Value::String(description),
-        );
-    }
-    if let Some(barcode) = payload.barcode {
-        updates.insert("barcode".to_string(), serde_json::Value::String(barcode));
-    }
-    if let Some(cost_price) = payload.cost_price {
-        updates.insert(
-            "cost_price".to_string(),
-            serde_json::Value::Number(cost_price.into()),
-        );
-    }
-    if let Some(category_id) = payload.category_id {
-        updates.insert(
-            "category_id".to_string(),
-            serde_json::Value::String(category_id),
-        );
-    }
-    if let Some(brand_id) = payload.brand_id {
-        updates.insert("brand_id".to_string(), serde_json::Value::String(brand_id));
-    }
-    if let Some(image_url) = payload.image_url {
-        updates.insert(
-            "image_url".to_string(),
-            serde_json::Value::String(image_url),
-        );
-    }
-    if let Some(weight) = payload.weight {
-        updates.insert("weight".to_string(), serde_json::json!(weight));
-    }
-    if let Some(dimensions) = payload.dimensions {
-        updates.insert("dimensions".to_string(), dimensions);
-    }
-    if let Some(track_inventory) = payload.track_inventory {
-        updates.insert(
-            "track_inventory".to_string(),
-            serde_json::Value::Bool(track_inventory),
-        );
-    }
-    if let Some(min_stock_level) = payload.min_stock_level {
-        updates.insert(
-            "min_stock_level".to_string(),
-            serde_json::Value::Number(min_stock_level.into()),
-        );
-    }
-    if let Some(is_featured) = payload.is_featured {
-        updates.insert(
-            "is_featured".to_string(),
-            serde_json::Value::Bool(is_featured),
-        );
-    }
-    if let Some(tags) = payload.tags {
-        updates.insert("tags".to_string(), serde_json::json!(tags));
-    }
+    let updates = PatchBuilder::new()
+        .set_string("name", payload.name)
+        .set_string("sku", payload.sku)
+        .set_i64("base_price", payload.base_price)
+        .set_string("description", payload.description)
+        .set_string("barcode", payload.barcode)
+        .set_i64("cost_price", payload.cost_price)
+        .set_string("category_id", payload.category_id)
+        .set_string("brand_id", payload.brand_id)
+        .set_string("image_url", payload.image_url)
+        .set_f64("weight", payload.weight)
+        .set_value("dimensions", payload.dimensions)
+        .set_bool("track_inventory", payload.track_inventory)
+        .set_i64("min_stock_level", payload.min_stock_level)
+        .set_bool("is_featured", payload.is_featured)
+        .set_value("tags", payload.tags.map(|t| serde_json::json!(t)))
+        .build();
 
     let updated = state
         .db
-        .update_product(&id, &serde_json::Value::Object(updates))
+        .update_product(&id, &updates)
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to update product");
-            ApiError::Internal(anyhow::anyhow!("Failed to update product"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to update product"))?;
 
     let response = ProductResponse::from_model(&updated, None, None);
     Ok(Json(ApiResponse::ok(response, "Product updated")))
 }
 
 /// `DELETE /api/products/:id` — soft-delete a product.
-async fn remove(
+pub async fn remove(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<()>>, ApiError> {
-    let existing = state.db.find_product(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to find product for delete");
-        ApiError::Internal(anyhow::anyhow!("Failed to find product"))
-    })?;
+    let existing = state
+        .db
+        .find_product(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to find product"))?;
 
     if existing.is_none() {
         return Ok(Json(ApiResponse::not_found("Product")));
     }
 
-    state.db.delete_product(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to soft-delete product");
-        ApiError::Internal(anyhow::anyhow!("Failed to delete product"))
-    })?;
+    state
+        .db
+        .delete_product(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to delete product"))?;
 
     Ok(Json(ApiResponse::ok((), "Product deleted")))
 }

@@ -1,48 +1,23 @@
-//! POS (Point of Sale) controller — menu, orders, and order management.
+//! Handler functions for POS endpoints.
 
 use axum::{
     extract::{Extension, Path, Query, State},
-    routing::get,
-    Json, Router,
+    Json,
 };
-use sakaloka_secure::rbac::{guard::RequireScope, Scope};
 
 use crate::app::AppState;
 use crate::error::ApiError;
+use crate::helpers::error_map::db_err;
 use crate::views::{
     order::{CreateOrderRequest, MenuResponse, OrderResponse, UpdateOrderRequest},
     record_id_to_string, ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse,
     PaginationParams,
 };
 
-/// A resolved order line item with named fields.
-struct ResolvedOrderItem {
-    product_id: String,
-    item_name: String,
-    quantity: i32,
-    unit_price: i64,
-    total_price: i64,
-}
-
-/// Registers all `/pos` routes (nested under `/api` by the top-level router).
-pub fn routes() -> Router<AppState> {
-    let read_routes = Router::new()
-        .route("/pos/menu", get(menu))
-        .route("/pos/orders", get(list_orders))
-        .route("/pos/orders/active", get(active_orders))
-        .route("/pos/orders/history", get(order_history))
-        .route("/pos/orders/{id}", get(show_order));
-
-    let write_routes = Router::new()
-        .route("/pos/orders", axum::routing::post(create_order))
-        .route("/pos/orders/{id}", axum::routing::patch(update_order))
-        .route_layer(RequireScope::new(Scope::EntityWrite));
-
-    Router::new().merge(read_routes).merge(write_routes)
-}
+use super::helpers::{generate_order_number, ResolvedOrderItem};
 
 /// `GET /api/pos/menu` — list products available for the POS order screen.
-async fn menu(
+pub async fn menu(
     State(state): State<AppState>,
     Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
@@ -55,19 +30,13 @@ async fn menu(
         .db
         .count_products(params.search.as_deref())
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to count menu items");
-            ApiError::Internal(anyhow::anyhow!("Failed to count menu items"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to count menu items"))?;
 
     let items = state
         .db
         .list_products(limit, start, params.search.as_deref(), "name", false)
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to list menu items");
-            ApiError::Internal(anyhow::anyhow!("Failed to list menu items"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to list menu items"))?;
 
     // Batch-fetch categories (avoids N+1 queries)
     let cat_ids: Vec<String> = items
@@ -116,7 +85,7 @@ async fn menu(
 }
 
 /// `GET /api/pos/orders` — list all orders with pagination.
-async fn list_orders(
+pub async fn list_orders(
     State(state): State<AppState>,
     Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
@@ -129,10 +98,7 @@ async fn list_orders(
         .db
         .count_orders(params.search.as_deref(), None, None)
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to count orders");
-            ApiError::Internal(anyhow::anyhow!("Failed to count orders"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to count orders"))?;
 
     let items = state
         .db
@@ -146,10 +112,7 @@ async fn list_orders(
             None,
         )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to list orders");
-            ApiError::Internal(anyhow::anyhow!("Failed to list orders"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to list orders"))?;
 
     let responses: Vec<OrderResponse> = items.iter().map(OrderResponse::from_model).collect();
 
@@ -166,7 +129,7 @@ async fn list_orders(
 
 /// `GET /api/pos/orders/active` — list active (non-completed, non-cancelled)
 /// orders.
-async fn active_orders(
+pub async fn active_orders(
     State(state): State<AppState>,
     Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
@@ -175,7 +138,6 @@ async fn active_orders(
     let limit = params.limit();
     let start = (page - 1) * limit;
 
-    // Exclude completed and cancelled
     let exclude_statuses: &[&str] = &["completed", "cancelled"];
 
     let total = state
@@ -212,7 +174,7 @@ async fn active_orders(
 }
 
 /// `GET /api/pos/orders/history` — list completed / cancelled orders.
-async fn order_history(
+pub async fn order_history(
     State(state): State<AppState>,
     Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
@@ -221,7 +183,6 @@ async fn order_history(
     let limit = params.limit();
     let start = (page - 1) * limit;
 
-    // Only completed or cancelled
     let filter_statuses: &[&str] = &["completed", "cancelled"];
 
     let total = state
@@ -258,39 +219,33 @@ async fn order_history(
 }
 
 /// `GET /api/pos/orders/:id` — fetch a single order with its items.
-async fn show_order(
+pub async fn show_order(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<OrderResponse>>, ApiError> {
-    let order = state.db.find_order(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to find order");
-        ApiError::Internal(anyhow::anyhow!("Failed to find order"))
-    })?;
+    let order = state
+        .db
+        .find_order(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to find order"))?;
 
     let order = match order {
         Some(o) => o,
         None => return Ok(Json(ApiResponse::not_found("Order"))),
     };
 
-    // Fetch order items
-    let items = state.db.list_order_items(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to list order items");
-        ApiError::Internal(anyhow::anyhow!("Failed to list order items"))
-    })?;
+    let items = state
+        .db
+        .list_order_items(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to list order items"))?;
 
     let response = OrderResponse::from_model_with_items(&order, &items);
     Ok(Json(ApiResponse::ok(response, "Order retrieved")))
 }
 
-/// Generate a unique order number with the format `ORD-YYYYMMDD-XXXXXXXX`.
-fn generate_order_number() -> String {
-    let date = chrono::Utc::now().format("%Y%m%d");
-    let suffix = &uuid::Uuid::new_v4().to_string()[..8];
-    format!("ORD-{date}-{suffix}")
-}
-
 /// `POST /api/pos/orders` — create a new order.
-async fn create_order(
+pub async fn create_order(
     State(state): State<AppState>,
     Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Json(payload): Json<CreateOrderRequest>,
@@ -301,19 +256,7 @@ async fn create_order(
         ])));
     }
 
-    let caller = state
-        .db
-        .find_user_by_id(&claims.sub)
-        .await
-        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to find user")))?
-        .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("User not found")))?;
-
-    let org_id = caller
-        .organization_id
-        .as_ref()
-        .map(record_id_to_string)
-        .ok_or_else(|| ApiError::BadRequest("User has no organization assigned".to_string()))?;
-
+    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims.sub).await?;
     let order_number = generate_order_number();
 
     // Batch-fetch all products in one query (avoids N+1)
@@ -323,10 +266,7 @@ async fn create_order(
         .db
         .find_products_by_ids(&product_ids)
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to batch-fetch products for order");
-            ApiError::Internal(anyhow::anyhow!("DB error"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to batch-fetch products for order"))?;
 
     let product_map: std::collections::HashMap<String, &sakaloka_core::models::product::Product> =
         products
@@ -386,10 +326,7 @@ async fn create_order(
             &claims.sub,
         )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to create order");
-            ApiError::Internal(anyhow::anyhow!("Failed to create order"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to create order"))?;
 
     let order_id = record_id_to_string(&order.id);
 
@@ -406,17 +343,15 @@ async fn create_order(
                 item.total_price,
             )
             .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "Failed to create order item");
-                ApiError::Internal(anyhow::anyhow!("Failed to create order item"))
-            })?;
+            .map_err(|e| db_err(e, "Failed to create order item"))?;
     }
 
     // Fetch the items back for the response
-    let items = state.db.list_order_items(&order_id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to list order items for response");
-        ApiError::Internal(anyhow::anyhow!("Failed to list order items"))
-    })?;
+    let items = state
+        .db
+        .list_order_items(&order_id)
+        .await
+        .map_err(|e| db_err(e, "Failed to list order items"))?;
 
     let response = OrderResponse::from_model_with_items(&order, &items);
     Ok(Json(ApiResponse::created(response, "Order created")))
@@ -424,23 +359,23 @@ async fn create_order(
 
 /// `PATCH /api/pos/orders/:id` — update an existing order (status, payment,
 /// etc.).
-async fn update_order(
+pub async fn update_order(
     State(state): State<AppState>,
     Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Path(id): Path<String>,
     Json(payload): Json<UpdateOrderRequest>,
 ) -> Result<Json<ApiResponse<OrderResponse>>, ApiError> {
-    let existing = state.db.find_order(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to find order for update");
-        ApiError::Internal(anyhow::anyhow!("Failed to find order"))
-    })?;
+    let existing = state
+        .db
+        .find_order(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to find order"))?;
 
     let existing = match existing {
         Some(o) => o,
         None => return Ok(Json(ApiResponse::not_found("Order"))),
     };
 
-    // Prevent modification of cancelled orders
     if existing.status == "cancelled" {
         return Ok(Json(ApiResponse::error(
             "order_cancelled",
@@ -462,16 +397,13 @@ async fn update_order(
             &claims.sub,
         )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to update order");
-            ApiError::Internal(anyhow::anyhow!("Failed to update order"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to update order"))?;
 
-    // Fetch items for complete response
-    let items = state.db.list_order_items(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to list order items");
-        ApiError::Internal(anyhow::anyhow!("Failed to list order items"))
-    })?;
+    let items = state
+        .db
+        .list_order_items(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to list order items"))?;
 
     let response = OrderResponse::from_model_with_items(&updated, &items);
     Ok(Json(ApiResponse::ok(response, "Order updated")))

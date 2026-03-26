@@ -1,37 +1,20 @@
-//! User management controller.
+//! Handler functions for user endpoints.
 
 use axum::{
     extract::{Extension, Path, Query, State},
-    routing::get,
-    Json, Router,
+    Json,
 };
-use sakaloka_secure::rbac::{guard::RequireScope, Scope};
 
 use crate::app::AppState;
 use crate::error::ApiError;
+use crate::helpers::error_map::db_err;
 use crate::views::{
     user::{CreateUserRequest, UpdateUserRequest, UserResponse},
     ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
-/// Registers all `/users` routes (nested under `/api` by the top-level
-/// router).
-pub fn routes() -> Router<AppState> {
-    let read_routes = Router::new()
-        .route("/users", get(list))
-        .route("/users/{id}", get(show))
-        .route_layer(RequireScope::new(Scope::UserRead));
-
-    let write_routes = Router::new()
-        .route("/users", axum::routing::post(create))
-        .route("/users/{id}", axum::routing::patch(update).delete(remove))
-        .route_layer(RequireScope::new(Scope::UserManage));
-
-    Router::new().merge(read_routes).merge(write_routes)
-}
-
 /// `GET /api/users` — list users with pagination and search.
-async fn list(
+pub async fn list(
     State(state): State<AppState>,
     Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
@@ -44,10 +27,7 @@ async fn list(
         .db
         .count_users(params.search.as_deref())
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to count users");
-            ApiError::Internal(anyhow::anyhow!("Failed to count users"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to count users"))?;
 
     let items = state
         .db
@@ -59,10 +39,7 @@ async fn list(
             params.is_desc(),
         )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to list users");
-            ApiError::Internal(anyhow::anyhow!("Failed to list users"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to list users"))?;
 
     let responses: Vec<UserResponse> = items.iter().map(UserResponse::from_model).collect();
 
@@ -78,14 +55,15 @@ async fn list(
 }
 
 /// `GET /api/users/:id` — fetch a single user.
-async fn show(
+pub async fn show(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<UserResponse>>, ApiError> {
-    let user = state.db.find_user_by_id(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to find user");
-        ApiError::Internal(anyhow::anyhow!("Failed to find user"))
-    })?;
+    let user = state
+        .db
+        .find_user_by_id(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to find user"))?;
 
     match user {
         Some(u) => Ok(Json(ApiResponse::ok(
@@ -97,7 +75,7 @@ async fn show(
 }
 
 /// `POST /api/users` — create a new user within the current organization.
-async fn create(
+pub async fn create(
     State(state): State<AppState>,
     Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Json(payload): Json<CreateUserRequest>,
@@ -140,19 +118,7 @@ async fn create(
     let password_hash = sakaloka_secure::argon2::hash_password(&pw)
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to hash password")))?;
 
-    // Determine organization from the caller's context
-    let caller = state
-        .db
-        .find_user_by_id(&claims.sub)
-        .await
-        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to find caller")))?
-        .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Caller not found")))?;
-
-    let org_id = caller
-        .organization_id
-        .as_ref()
-        .map(crate::views::record_id_to_string)
-        .ok_or_else(|| ApiError::BadRequest("User has no organization assigned".to_string()))?;
+    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims.sub).await?;
 
     let result = state
         .db
@@ -164,10 +130,7 @@ async fn create(
             &payload.role_id,
         )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to create user");
-            ApiError::Internal(anyhow::anyhow!("Failed to create user"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to create user"))?;
 
     Ok(Json(ApiResponse::created(
         UserResponse::from_model(&result),
@@ -176,15 +139,16 @@ async fn create(
 }
 
 /// `PATCH /api/users/:id` — update an existing user.
-async fn update(
+pub async fn update(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Json(payload): Json<UpdateUserRequest>,
 ) -> Result<Json<ApiResponse<UserResponse>>, ApiError> {
-    let existing = state.db.find_user_by_id(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to find user for update");
-        ApiError::Internal(anyhow::anyhow!("Failed to find user"))
-    })?;
+    let existing = state
+        .db
+        .find_user_by_id(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to find user"))?;
 
     if existing.is_none() {
         return Ok(Json(ApiResponse::not_found("User")));
@@ -232,10 +196,7 @@ async fn update(
             payload.is_active,
         )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to update user");
-            ApiError::Internal(anyhow::anyhow!("Failed to update user"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to update user"))?;
 
     Ok(Json(ApiResponse::ok(
         UserResponse::from_model(&updated),
@@ -244,7 +205,7 @@ async fn update(
 }
 
 /// `DELETE /api/users/:id` — deactivate a user.
-async fn remove(
+pub async fn remove(
     State(state): State<AppState>,
     Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Path(id): Path<String>,
@@ -257,10 +218,11 @@ async fn remove(
         )));
     }
 
-    let existing = state.db.find_user_by_id(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to find user for deactivation");
-        ApiError::Internal(anyhow::anyhow!("Failed to find user"))
-    })?;
+    let existing = state
+        .db
+        .find_user_by_id(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to find user"))?;
 
     if existing.is_none() {
         return Ok(Json(ApiResponse::not_found("User")));
@@ -271,10 +233,7 @@ async fn remove(
         .db
         .update_user(&id, None, None, None, None, Some(false))
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to deactivate user");
-            ApiError::Internal(anyhow::anyhow!("Failed to deactivate user"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to deactivate user"))?;
 
     Ok(Json(ApiResponse::ok((), "User deactivated")))
 }

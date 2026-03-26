@@ -1,35 +1,17 @@
-//! Role management controller.
+//! Handler functions for role endpoints.
 
 use axum::{
     extract::{Extension, Path, Query, State},
-    routing::get,
-    Json, Router,
+    Json,
 };
-use sakaloka_secure::rbac::{guard::RequireScope, Scope};
 
 use crate::app::AppState;
 use crate::error::ApiError;
+use crate::helpers::error_map::db_err;
 use crate::views::{
     role::{CreateRoleRequest, PermissionsResponse, RoleResponse, UpdateRoleRequest},
     ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
-
-/// Registers all `/roles` routes (nested under `/api` by the top-level
-/// router).
-pub fn routes() -> Router<AppState> {
-    let read_routes = Router::new()
-        .route("/roles", get(list))
-        .route("/roles/permissions", get(permissions))
-        .route("/roles/{id}", get(show))
-        .route_layer(RequireScope::new(Scope::UserRead));
-
-    let write_routes = Router::new()
-        .route("/roles", axum::routing::post(create))
-        .route("/roles/{id}", axum::routing::patch(update).delete(remove))
-        .route_layer(RequireScope::new(Scope::UserManage));
-
-    Router::new().merge(read_routes).merge(write_routes)
-}
 
 /// All known permission strings for the Sakaloka platform.
 const ALL_PERMISSIONS: &[&str] = &[
@@ -47,7 +29,7 @@ const ALL_PERMISSIONS: &[&str] = &[
 ];
 
 /// `GET /api/roles` — list roles with pagination and search.
-async fn list(
+pub async fn list(
     State(state): State<AppState>,
     Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
@@ -60,10 +42,7 @@ async fn list(
         .db
         .count_roles(params.search.as_deref())
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to count roles");
-            ApiError::Internal(anyhow::anyhow!("Failed to count roles"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to count roles"))?;
 
     let items = state
         .db
@@ -75,10 +54,7 @@ async fn list(
             params.is_desc(),
         )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to list roles");
-            ApiError::Internal(anyhow::anyhow!("Failed to list roles"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to list roles"))?;
 
     let responses: Vec<RoleResponse> = items.iter().map(RoleResponse::from_model).collect();
 
@@ -94,7 +70,7 @@ async fn list(
 }
 
 /// `GET /api/roles/permissions` — list all available permissions.
-async fn permissions() -> Result<Json<ApiResponse<PermissionsResponse>>, ApiError> {
+pub async fn permissions() -> Result<Json<ApiResponse<PermissionsResponse>>, ApiError> {
     let perms = ALL_PERMISSIONS.iter().map(|s| s.to_string()).collect();
 
     Ok(Json(ApiResponse::ok(
@@ -104,14 +80,15 @@ async fn permissions() -> Result<Json<ApiResponse<PermissionsResponse>>, ApiErro
 }
 
 /// `GET /api/roles/:id` — fetch a single role.
-async fn show(
+pub async fn show(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<RoleResponse>>, ApiError> {
-    let role = state.db.find_role(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to find role");
-        ApiError::Internal(anyhow::anyhow!("Failed to find role"))
-    })?;
+    let role = state
+        .db
+        .find_role(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to find role"))?;
 
     match role {
         Some(r) => Ok(Json(ApiResponse::ok(
@@ -123,7 +100,7 @@ async fn show(
 }
 
 /// `POST /api/roles` — create a new role.
-async fn create(
+pub async fn create(
     State(state): State<AppState>,
     Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Json(payload): Json<CreateRoleRequest>,
@@ -134,19 +111,7 @@ async fn create(
         ])));
     }
 
-    // Determine organization from caller
-    let caller = state
-        .db
-        .find_user_by_id(&claims.sub)
-        .await
-        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to find caller")))?
-        .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Caller not found")))?;
-
-    let org_id = caller
-        .organization_id
-        .as_ref()
-        .map(crate::views::record_id_to_string)
-        .ok_or_else(|| ApiError::BadRequest("User has no organization assigned".to_string()))?;
+    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims.sub).await?;
 
     // Check for duplicate name within the organization
     let existing = state
@@ -166,10 +131,7 @@ async fn create(
         .db
         .create_role(&payload.name, &org_id, &payload.permissions, false)
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to create role");
-            ApiError::Internal(anyhow::anyhow!("Failed to create role"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to create role"))?;
 
     Ok(Json(ApiResponse::created(
         RoleResponse::from_model(&result),
@@ -178,15 +140,16 @@ async fn create(
 }
 
 /// `PATCH /api/roles/:id` — update an existing role.
-async fn update(
+pub async fn update(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Json(payload): Json<UpdateRoleRequest>,
 ) -> Result<Json<ApiResponse<RoleResponse>>, ApiError> {
-    let existing = state.db.find_role(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to find role for update");
-        ApiError::Internal(anyhow::anyhow!("Failed to find role"))
-    })?;
+    let existing = state
+        .db
+        .find_role(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to find role"))?;
 
     let existing = match existing {
         Some(r) => r,
@@ -210,10 +173,7 @@ async fn update(
             payload.is_active,
         )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to update role");
-            ApiError::Internal(anyhow::anyhow!("Failed to update role"))
-        })?;
+        .map_err(|e| db_err(e, "Failed to update role"))?;
 
     Ok(Json(ApiResponse::ok(
         RoleResponse::from_model(&updated),
@@ -222,14 +182,15 @@ async fn update(
 }
 
 /// `DELETE /api/roles/:id` — delete a role.
-async fn remove(
+pub async fn remove(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<()>>, ApiError> {
-    let existing = state.db.find_role(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to find role for delete");
-        ApiError::Internal(anyhow::anyhow!("Failed to find role"))
-    })?;
+    let existing = state
+        .db
+        .find_role(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to find role"))?;
 
     let existing = match existing {
         Some(r) => r,
@@ -245,10 +206,11 @@ async fn remove(
     }
 
     // Check for users assigned to this role
-    let assigned_users = state.db.count_users_with_role(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to count users with role");
-        ApiError::Internal(anyhow::anyhow!("Failed to count users with role"))
-    })?;
+    let assigned_users = state
+        .db
+        .count_users_with_role(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to count users with role"))?;
 
     if assigned_users > 0 {
         return Ok(Json(ApiResponse::error(
@@ -257,10 +219,11 @@ async fn remove(
         )));
     }
 
-    state.db.delete_role(&id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to delete role");
-        ApiError::Internal(anyhow::anyhow!("Failed to delete role"))
-    })?;
+    state
+        .db
+        .delete_role(&id)
+        .await
+        .map_err(|e| db_err(e, "Failed to delete role"))?;
 
     Ok(Json(ApiResponse::ok((), "Role deleted")))
 }

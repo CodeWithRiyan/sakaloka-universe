@@ -9,6 +9,8 @@ pub mod app;
 pub mod controllers;
 /// Unified API error type.
 pub mod error;
+/// Shared helpers used across controllers.
+pub mod helpers;
 /// Authentication and authorization middleware.
 pub mod middleware;
 /// Response DTOs and view helpers.
