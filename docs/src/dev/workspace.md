@@ -13,16 +13,28 @@ sakaloka-universe/
 │   │   │   ├── app.rs        # Router construction, CORS, migrations
 │   │   │   ├── error.rs      # ApiError enum (Internal, NotFound, BadRequest, etc.)
 │   │   │   ├── middleware.rs  # auth_middleware (JWT validation)
-│   │   │   ├── controllers/  # Route handlers by domain
-│   │   │   │   ├── auth.rs        # Login, register, refresh, profile
-│   │   │   │   ├── product.rs     # Product CRUD
-│   │   │   │   ├── brand.rs       # Brand CRUD
-│   │   │   │   ├── category.rs    # Category CRUD
-│   │   │   │   ├── user.rs        # User management
-│   │   │   │   ├── role.rs        # Role management
-│   │   │   │   ├── organization.rs# Organization management
-│   │   │   │   ├── pos.rs         # POS: menu, orders
-│   │   │   │   └── stock.rs       # Inventory & stock movements
+│   │   │   ├── helpers/      # Shared controller helpers
+│   │   │   │   ├── org_resolver.rs  # Resolve caller org from JWT claims
+│   │   │   │   ├── error_map.rs     # db_err() — map DB errors to ApiError
+│   │   │   │   └── patch_builder.rs # Fluent builder for partial-update JSON
+│   │   │   ├── controllers/  # Route handlers by domain (directory modules)
+│   │   │   │   ├── auth/          # Login, register, refresh, profile
+│   │   │   │   │   ├── routes.rs  #   public_routes + protected_routes
+│   │   │   │   │   ├── handlers.rs#   handler functions
+│   │   │   │   │   └── helpers.rs #   map_rbac_role, issue_tokens, build_profile
+│   │   │   │   ├── product/       # Product CRUD
+│   │   │   │   │   ├── routes.rs  #   route definitions
+│   │   │   │   │   └── handlers.rs#   handler functions
+│   │   │   │   ├── brand/         # Brand CRUD
+│   │   │   │   ├── category/      # Category CRUD
+│   │   │   │   ├── user/          # User management
+│   │   │   │   ├── role/          # Role management
+│   │   │   │   ├── organization/  # Organization management
+│   │   │   │   ├── pos/           # POS: menu, orders
+│   │   │   │   │   ├── routes.rs
+│   │   │   │   │   ├── handlers.rs
+│   │   │   │   │   └── helpers.rs #   ResolvedOrderItem, generate_order_number
+│   │   │   │   └── stock/         # Inventory & stock movements
 │   │   │   └── views/        # Request/response types (DTOs)
 │   │   └── Dockerfile         # Multi-stage Rust build
 │   ├── ockam/                # Mars — Ockam secure transport

@@ -88,31 +88,51 @@ Paginated responses add metadata:
 
 ## Controller Pattern
 
-Each controller follows this structure:
+Each controller is a **directory module** with separate files for routes, handlers, and optional helpers:
+
+```
+controllers/
+└── item/
+    ├── mod.rs       # Re-exports routes (pub use routes::routes)
+    ├── routes.rs    # Route definitions with RBAC layers
+    ├── handlers.rs  # Handler functions
+    └── helpers.rs   # (optional) Domain-specific helpers
+```
+
+**`routes.rs`** — defines the Axum router:
 
 ```rust
-// 1. Define routes
 pub fn routes() -> Router<AppState> {
     let read_routes = Router::new()
-        .route("/items", get(list))
+        .route("/items", get(handlers::list))
         .route_layer(RequireScope::new(Scope::EntityRead));
     let write_routes = Router::new()
-        .route("/items", post(create))
+        .route("/items", post(handlers::create))
         .route_layer(RequireScope::new(Scope::EntityWrite));
     Router::new().merge(read_routes).merge(write_routes)
 }
+```
 
-// 2. Handler signature
-async fn list(
+**`handlers.rs`** — handler functions:
+
+```rust
+pub async fn list(
     State(state): State<AppState>,
     Extension(claims): Extension<UserClaims>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<PaginatedResponse<ItemResponse>>, ApiError> {
-    // 3. Extract org_id from claims (never unwrap_or_default)
-    // 4. Call state.db methods
-    // 5. Return ApiResponse
+    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims.sub).await?;
+    // Call state.db methods, return ApiResponse
 }
 ```
+
+### Shared Helpers (`src/helpers/`)
+
+| Helper | Purpose |
+|--------|---------|
+| `org_resolver` | `resolve_caller_org(state, user_id)` — extracts caller's org ID from JWT claims |
+| `error_map` | `db_err(err, context)` — maps DB errors to `ApiError::Internal` with tracing |
+| `patch_builder` | `PatchBuilder` — fluent builder for partial-update JSON payloads |
 
 ## Documentation Rules
 
