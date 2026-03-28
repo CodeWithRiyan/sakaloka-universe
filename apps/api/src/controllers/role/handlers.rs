@@ -13,7 +13,6 @@ use crate::views::{
     ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
-
 /// `GET /api/roles` — list roles with pagination and search.
 pub async fn list(
     State(state): State<AppState>,
@@ -119,7 +118,9 @@ pub async fn create(
     }
 
     // Validate that every permission entry is a known canonical scope.
-    if let Err(unknown) = sakaloka_secure::rbac::permission::validate_permissions(&payload.permissions) {
+    if let Err(unknown) =
+        sakaloka_secure::rbac::permission::validate_permissions(&payload.permissions)
+    {
         return Ok(Json(ApiResponse::validation(vec![format!(
             "Unknown permission: {unknown}"
         )])));

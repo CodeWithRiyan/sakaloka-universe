@@ -113,7 +113,10 @@ pub async fn login(
 
     // 4. Issue tokens + persist session — scopes are derived from the DB role's
     //    permissions object, not the static RBAC matrix.
-    let role_permissions = role.permissions.clone().unwrap_or_else(|| serde_json::json!({}));
+    let role_permissions = role
+        .permissions
+        .clone()
+        .unwrap_or_else(|| serde_json::json!({}));
     let (access_token, refresh_token) =
         issue_tokens_and_session(&state, &user_id_str, &role.name, &role_permissions).await?;
 
