@@ -17,6 +17,8 @@
 //! - Argon2id password hashing and verification
 //! - JWT signing and validation (User JWTs + Service JWTs)
 //! - RBAC roles and scope enforcement middleware
+//! - **Permission normaliser** — converts DB `role.permissions` JSON to canonical
+//!   JWT scope strings (`rbac::permission`)
 //! - Service token store with proactive cache + rotation
 //! - Scoped Qdrant API key vault
 //! - Newtype wrappers for validated user inputs

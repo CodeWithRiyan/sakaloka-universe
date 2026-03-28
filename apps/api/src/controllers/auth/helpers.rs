@@ -8,35 +8,30 @@ use crate::views::{
     record_id_to_string,
 };
 
-/// Map a DB role name to the RBAC `Role` enum.
-pub fn map_rbac_role(role_name: &str) -> sakaloka_secure::rbac::Role {
-    match role_name.to_lowercase().as_str() {
-        "admin" | "owner" => sakaloka_secure::rbac::Role::Admin,
-        "editor" | "manager" | "cashier" => sakaloka_secure::rbac::Role::Editor,
-        other => {
-            tracing::warn!(role_name = %other, "Unknown role mapped to Viewer — add explicit mapping if this is intentional");
-            sakaloka_secure::rbac::Role::Viewer
-        }
-    }
-}
-
 /// Issue an access token, generate a refresh token, and persist the session.
 ///
-/// Returns `(access_token, refresh_token)`.
+/// Scopes are derived from the `role.permissions` JSON stored in the database
+/// via [`sakaloka_secure::rbac::permission::normalize_permissions`].  The old
+/// `map_rbac_role` path that went through the static RBAC matrix has been
+/// removed; scopes now faithfully reflect what the DB role actually grants.
+///
+/// # Errors
+///
+/// Returns [`ApiError::Internal`] if the user ID is invalid, JWT signing fails,
+/// or the session cannot be persisted to the database.
 pub async fn issue_tokens_and_session(
     state: &AppState,
     user_id: &str,
     role_name: &str,
+    db_permissions: &serde_json::Value,
 ) -> Result<(String, String), ApiError> {
     let uid = sakaloka_secure::newtypes::UserId::new(user_id)
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     let session_id = sakaloka_secure::newtypes::SessionId::new();
 
-    let rbac_role = map_rbac_role(role_name);
-    let scopes: Vec<String> = sakaloka_secure::rbac::matrix::allowed_scopes(&rbac_role)
-        .into_iter()
-        .map(|s| s.to_string())
-        .collect();
+    // Derive scopes from the DB permissions object rather than the static RBAC matrix.
+    let scopes: Vec<String> =
+        sakaloka_secure::rbac::permission::normalize_permissions(db_permissions);
     let scope_refs: Vec<&str> = scopes.iter().map(|s| s.as_str()).collect();
 
     let access_token = sakaloka_secure::jwt::user_claims::issue_user_token(
@@ -61,6 +56,11 @@ pub async fn issue_tokens_and_session(
 }
 
 /// Build a [`UserProfile`] view from core models.
+///
+/// # Examples
+///
+/// This function is pure and always succeeds — all fields come from validated DB
+/// records so no `Result` is needed.
 pub fn build_user_profile(
     user_id: String,
     email: String,

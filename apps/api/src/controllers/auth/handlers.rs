@@ -111,9 +111,11 @@ pub async fn login(
         .map_err(|e| db_err(e, "Failed to load role"))?
         .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Role not found")))?;
 
-    // 4. Issue tokens + persist session
+    // 4. Issue tokens + persist session — scopes are derived from the DB role's
+    //    permissions object, not the static RBAC matrix.
+    let role_permissions = role.permissions.clone().unwrap_or_else(|| serde_json::json!({}));
     let (access_token, refresh_token) =
-        issue_tokens_and_session(&state, &user_id_str, &role.name).await?;
+        issue_tokens_and_session(&state, &user_id_str, &role.name, &role_permissions).await?;
 
     // 5. Update last_login_at (best-effort)
     if let Err(e) = state.db.update_last_login(&user_id_str).await {
@@ -166,17 +168,11 @@ pub async fn register(
     let (org_id_str, role_id_str, user_id_str) =
         create_account_entities(&state, &payload, &password_hash).await?;
 
-    // 4. Issue tokens + persist session
+    // 4. Issue tokens + persist session — use the full admin permissions that were
+    //    seeded in create_account_entities so scopes match what the DB actually stores.
+    let admin_permissions = sakaloka_secure::rbac::permission::full_permissions();
     let (access_token, refresh_token) =
-        issue_tokens_and_session(&state, &user_id_str, "admin").await?;
-
-    let admin_permissions = serde_json::json!({
-        "entity:read": true,
-        "entity:write": true,
-        "entity:delete": true,
-        "user:read": true,
-        "user:manage": true,
-    });
+        issue_tokens_and_session(&state, &user_id_str, "admin", &admin_permissions).await?;
 
     let response = LoginResponse {
         access_token,
@@ -212,13 +208,8 @@ async fn create_account_entities(
     payload: &RegisterRequest,
     password_hash: &str,
 ) -> Result<(String, String, String), ApiError> {
-    let admin_permissions = serde_json::json!({
-        "entity:read": true,
-        "entity:write": true,
-        "entity:delete": true,
-        "user:read": true,
-        "user:manage": true,
-    });
+    // All admin permissions derived from the canonical vocabulary.
+    let admin_permissions = sakaloka_secure::rbac::permission::full_permissions();
 
     // Step 1: Create organization
     let org = state

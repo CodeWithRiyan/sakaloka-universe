@@ -124,13 +124,14 @@ services:
 
   # ─────────────────────────────────────────────────────────────
   # 🔵 Uranus — Qdrant (vector search engine)
-  # External: 127.0.0.1:56333 → 6333
+  # External: 127.0.0.1:56333 → 6333 (REST), 127.0.0.1:56334 → 6334 (gRPC)
   # Note: qdrant image ships with /bin/sh and a qdrant binary.
   # ─────────────────────────────────────────────────────────────
   qdrant:
     image: qdrant/qdrant:latest
     ports:
       - "127.0.0.1:56333:6333"
+      - "127.0.0.1:56334:6334"
     environment:
       - QDRANT__SERVICE__API_KEY=${QDRANT_MASTER_KEY:-sakaloka-dev-key}
     volumes:

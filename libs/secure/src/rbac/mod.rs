@@ -1,7 +1,16 @@
 //! Role-Based Access Control (RBAC) — roles, scopes, and enforcement.
 
 pub mod guard;
+/// Role-to-scope lookup matrix.
+///
+/// **Non-user auth only.** This matrix must not be used for issuing User JWTs.
+/// User JWT scopes are derived from the `role.permissions` column via
+/// [`permission::normalize_permissions`].  The matrix is retained solely for
+/// service-to-service tokens and internal defaults.
 pub mod matrix;
+/// Permission normalisation helpers for converting DB `role.permissions` JSON
+/// objects into canonical scope strings embedded in User JWTs.
+pub mod permission;
 
 use serde::{Deserialize, Serialize};
 use std::fmt;

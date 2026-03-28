@@ -1,7 +1,5 @@
 //! Sakaloka-Universe — Earth: Axum REST API entry point.
 
-use std::sync::Arc;
-
 use sakaloka_api::app::{self, AppState};
 
 #[tokio::main]
@@ -32,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
     let jwt_keys = sakaloka_secure::jwt::JwtKeys::from_env()?;
     let state = AppState {
         db,
-        jwt_keys: Arc::new(jwt_keys),
+        jwt_keys: std::sync::Arc::new(jwt_keys),
     };
 
     let router = app::router(state);

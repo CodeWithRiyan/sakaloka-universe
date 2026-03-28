@@ -13,20 +13,6 @@ use crate::views::{
     ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
-/// All known permission strings for the Sakaloka platform.
-const ALL_PERMISSIONS: &[&str] = &[
-    "entity:read",
-    "entity:write",
-    "entity:delete",
-    "search:read",
-    "user:read",
-    "user:manage",
-    "db:read",
-    "db:write",
-    "db:admin",
-    "zenoh:publish",
-    "zenoh:subscribe",
-];
 
 /// `GET /api/roles` — list roles with pagination and search.
 pub async fn list(
@@ -70,11 +56,16 @@ pub async fn list(
 }
 
 /// `GET /api/roles/permissions` — list all available permissions.
+///
+/// Returns the complete canonical scope vocabulary so the frontend can render
+/// permission checkboxes without hard-coding strings on the client side.
 pub async fn permissions() -> Result<Json<ApiResponse<PermissionsResponse>>, ApiError> {
-    let perms = ALL_PERMISSIONS.iter().map(|s| s.to_string()).collect();
+    let all = sakaloka_secure::rbac::permission::normalize_permissions(
+        &sakaloka_secure::rbac::permission::full_permissions(),
+    );
 
     Ok(Json(ApiResponse::ok(
-        PermissionsResponse { permissions: perms },
+        PermissionsResponse { permissions: all },
         "Permissions retrieved",
     )))
 }
@@ -127,6 +118,13 @@ pub async fn create(
         )));
     }
 
+    // Validate that every permission entry is a known canonical scope.
+    if let Err(unknown) = sakaloka_secure::rbac::permission::validate_permissions(&payload.permissions) {
+        return Ok(Json(ApiResponse::validation(vec![format!(
+            "Unknown permission: {unknown}"
+        )])));
+    }
+
     let result = state
         .db
         .create_role(&payload.name, &org_id, &payload.permissions, false)
@@ -162,6 +160,15 @@ pub async fn update(
             "system_role",
             "System roles cannot be modified",
         )));
+    }
+
+    // Validate incoming permissions before writing to the DB.
+    if let Some(perms) = payload.permissions.as_ref() {
+        if let Err(unknown) = sakaloka_secure::rbac::permission::validate_permissions(perms) {
+            return Ok(Json(ApiResponse::validation(vec![format!(
+                "Unknown permission: {unknown}"
+            )])));
+        }
     }
 
     let updated = state
