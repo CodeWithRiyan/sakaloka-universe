@@ -4,7 +4,7 @@ import type { IPageMeta } from "./pagination"
 
 type Schemas = components["schemas"]
 
-export type PermissionType = "create" | "read" | "update" | "delete"
+export type PermissionType = "create" | "read" | "update" | "delete" | "select"
 
 /** Role entity - generated from Loco API with frontend extensions. */
 export type Role = Omit<StripNull<Schemas["RoleResponse"]>, "permissions"> & {

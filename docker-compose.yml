@@ -23,7 +23,7 @@ services:
       - SAKALOKA_JWT_SECRET=${SAKALOKA_JWT_SECRET}
       - SURREALDB_URL=ws://surrealdb:8000
       - SURREALDB_USER=${SURREALDB_USER:-root}
-      - SURREALDB_PASS=${SURREALDB_PASS:-sakaloka-dev}
+      - SURREALDB_PASS=${SURREALDB_PASS:-sakaloka-dev-password}
       - QDRANT_URL=http://qdrant:6333
       - QDRANT_MASTER_KEY=${QDRANT_MASTER_KEY}
       - ZENOH_CONNECT=tcp/zenoh:7447
@@ -83,7 +83,7 @@ services:
   # ─────────────────────────────────────────────────────────────
   surrealdb:
     image: surrealdb/surrealdb:v3.0.4
-    command: start --log info --user ${SURREALDB_USER:-root} --pass ${SURREALDB_PASS:-sakaloka-dev} memory
+    command: start --log info --user ${SURREALDB_USER:-root} --pass ${SURREALDB_PASS:-sakaloka-dev-password} memory
     ports:
       - "127.0.0.1:58000:8000"
     healthcheck:

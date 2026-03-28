@@ -6,7 +6,7 @@
 
 use axum::{
     extract::{Request, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
     Json,
@@ -28,13 +28,8 @@ pub async fn auth_middleware(
     mut req: Request,
     next: Next,
 ) -> Response {
-    let auth_header = req
-        .headers()
-        .get("Authorization")
-        .and_then(|h| h.to_str().ok());
-
-    let token = match auth_header {
-        Some(header) if header.starts_with("Bearer ") => &header[7..],
+    let token = match bearer_token(req.headers()) {
+        Some(token) => token,
         _ => {
             return (
                 StatusCode::UNAUTHORIZED,
@@ -65,5 +60,45 @@ pub async fn auth_middleware(
             )
                 .into_response()
         }
+    }
+}
+
+/// Extracts the bearer token from an `Authorization` header map.
+fn bearer_token(headers: &HeaderMap) -> Option<&str> {
+    headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|header| header.strip_prefix("Bearer "))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::bearer_token;
+    use axum::http::{HeaderMap, HeaderValue};
+
+    #[test]
+    fn bearer_token_extracts_valid_token() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "Authorization",
+            HeaderValue::from_static("Bearer sakaloka-token"),
+        );
+
+        assert_eq!(bearer_token(&headers), Some("sakaloka-token"));
+    }
+
+    #[test]
+    fn bearer_token_rejects_missing_header() {
+        let headers = HeaderMap::new();
+
+        assert_eq!(bearer_token(&headers), None);
+    }
+
+    #[test]
+    fn bearer_token_rejects_non_bearer_scheme() {
+        let mut headers = HeaderMap::new();
+        headers.insert("Authorization", HeaderValue::from_static("Basic abc123"));
+
+        assert_eq!(bearer_token(&headers), None);
     }
 }

@@ -1,217 +1,210 @@
 # Sakaloka-Universe — Setup Guide
 
+This guide is the canonical day-to-day onboarding document for the current
+monorepo.
+
+## What you are running
+
+- `apps/api` — Axum REST API
+- `apps/venus` — React + Tauri operator app
+- `libs/*` — shared Rust crates
+- `libs/data/surql/*` — SurrealDB migrations and seed data
+
+Important defaults:
+
+- API local URL: `http://localhost:3000`
+- API local base path: `http://localhost:3000/api`
+- Venus local dev URL: `http://localhost:5173`
+- SurrealDB dev credentials: `root / sakaloka-dev-password`
+- Seed superadmin email: `superadmin@sakaloka.local`
+- Seed superadmin password: `sakaloka-dev-01`
+
 ## Prerequisites
 
-- **Rust** (stable) — [rustup.rs](https://rustup.rs)
-- **Docker & Docker Compose** — for Postgres, SurrealDB, Qdrant, Zenoh
-- **Node.js 20+** & **pnpm** — only for Venus (Tauri desktop app)
+- Rust stable via `rustup`
+- Docker and Docker Compose
+- Node.js 22+
+- `pnpm`
+- Tauri system dependencies only if you want to run the desktop shell locally
 
-## 1. Clone & Environment
+## 1. Bootstrap local environment
+
+From the repo root:
 
 ```bash
-git clone https://github.com/CodeWithRiyan/sakaloka-universe.git
-cd sakaloka-universe
+make bootstrap
+```
 
-# Create environment file
+This prepares:
+
+- root `.env` from [`.env.example`](./.env.example)
+- Venus `.env` from [`apps/venus/.env.example`](./apps/venus/.env.example)
+
+If you prefer to do it manually:
+
+```bash
 cp .env.example .env
+cp apps/venus/.env.example apps/venus/.env
 ```
 
-Edit `.env` and set a real JWT secret (min 32 chars):
+## 2. Start local infrastructure
+
+Check ports first:
 
 ```bash
-# Generate a secret
-openssl rand -base64 48
+make ports
 ```
 
-## 2. Start Infrastructure
-
-Start **only the databases/services** (no app containers needed for local dev):
+Start the development infrastructure:
 
 ```bash
-docker compose up -d postgres surrealdb qdrant zenoh
+make infra-up
 ```
 
-Wait for healthy status:
+Inspect status:
 
 ```bash
-docker compose ps
+make infra-ps
 ```
 
-### Service Ports
+The main local service ports are:
 
-| Service    | Planet  | External Port         | Purpose              |
-|------------|---------|----------------------|----------------------|
-| Postgres   | —       | `127.0.0.1:55432`    | Relational DB (API)  |
-| SurrealDB  | Jupiter | `127.0.0.1:58000`    | Graph/document DB    |
-| Qdrant     | Uranus  | `127.0.0.1:56333`    | Vector search        |
-| Zenoh      | Saturn  | `127.0.0.1:57447`    | Pub/sub messaging    |
+| Service | URL / Port | Purpose |
+|---|---|---|
+| API | `http://localhost:3000` | Axum backend |
+| SurrealDB | `ws://127.0.0.1:58000` | Primary database |
+| Qdrant | `http://127.0.0.1:56333` | Vector store |
+| Zenoh | `tcp/127.0.0.1:57447` | Messaging |
+| Ockam | `http://127.0.0.1:54000` | Secure transport node |
+| Venus | `http://localhost:5173` | Frontend dev server |
 
-## 3. Run the API (Earth)
+## 3. Run the API
 
 ```bash
-# Run with auto-migration (reads config/development.yaml)
-cargo run -p sakaloka-api
+make api-dev
 ```
 
-The API starts on `http://localhost:3000` with auto-migration enabled.
+What happens on startup:
 
-### Useful API commands
+- `.env` is loaded
+- SurrealDB connection is established
+- all `libs/data/surql/*.surql` migrations are applied in order
+- seed data is ensured, including the global superadmin
+- Axum starts on `PORT` or `3000`
+
+Useful checks:
+
+- health check: `GET /health`
+- OpenAPI generation:
 
 ```bash
-# Run with Loco CLI (shows all available commands)
-cargo run -p sakaloka-api -- --help
-
-# Run database migrations manually
-cargo run -p sakaloka-api -- db migrate
-
-# Reset database (drop + re-migrate)
-cargo run -p sakaloka-api -- db reset
-
-# Generate OpenAPI spec
-cargo run --bin openapi
+make openapi
 ```
 
-### API Endpoints
+## 4. Run Venus
 
-- `GET  /health` — health check
-- `POST /api/auth/register` — register user
-- `POST /api/auth/login` — login
-- `GET  /api/products` — list products (requires auth)
-- Swagger UI at `/swagger-ui` (when running)
-
-## 4. Run Venus (Tauri Desktop App)
-
-Venus has **two parts**: a React frontend (from the `sakapos` repo) and a Rust Tauri shell.
-
-### First-time setup
-
-The frontend code lives in a separate git repo inside `apps/venus/`:
+Install dependencies once:
 
 ```bash
-cd apps/venus
-
-# If frontend files are not present, pull them:
-git init   # (skip if already initialized)
-git remote add origin https://github.com/CodeWithRiyan/sakapos.git
-git fetch origin
-git checkout main
-
-# Install frontend dependencies
-pnpm install
+make venus-install
 ```
 
-### Run in development
+Run the web app:
 
 ```bash
-# From the project root — starts both React dev server + Tauri window
-cd apps/venus/src-tauri
-cargo tauri dev
+make venus-dev
 ```
 
-This runs `pnpm dev` (React on `localhost:5173`) and opens the Tauri desktop window.
-
-### Build for production
+Run the Tauri shell:
 
 ```bash
-cd apps/venus/src-tauri
-cargo tauri build
+make venus-tauri-dev
 ```
 
-## 5. Run Tests
+## 5. Sync API contracts into Venus
+
+Whenever backend request/response contracts change:
 
 ```bash
-# Set required env var
-export SAKALOKA_JWT_SECRET="test-secret-at-least-32-characters-long!"
-export DATABASE_URL="postgres://sakaloka:sakaloka_dev@127.0.0.1:55432/sakaloka_dev"
-
-# All tests
-cargo test --workspace
-
-# Single crate
-cargo test -p sakaloka-secure
-
-# Single test by name
-cargo test -p sakaloka-api -- health
+make venus-sync-types
 ```
 
-## 6. Lint & Format
+This refreshes:
+
+- [`apps/venus/openapi.json`](./apps/venus/openapi.json)
+- [`apps/venus/src/types/generated.ts`](./apps/venus/src/types/generated.ts)
+
+## 6. Local quality gate
+
+Backend only:
 
 ```bash
-# Check formatting
-cargo fmt --all -- --check
-
-# Fix formatting
-cargo fmt --all
-
-# Clippy (must pass with zero warnings)
-cargo clippy --workspace --all-targets -- -D warnings
-
-# Doc coverage (must be 100%)
-RUSTDOCFLAGS="-D missing_docs" cargo doc --workspace --no-deps
+make check-backend
 ```
 
-## 7. Full Docker Stack (optional)
-
-To run **everything** in containers (API + all services):
+Venus only:
 
 ```bash
-docker compose up -d
+make check-venus
 ```
 
-| Container      | Port                  |
-|----------------|-----------------------|
-| sakaloka-api   | `127.0.0.1:53000`    |
-| mars-ockam     | `127.0.0.1:54000`    |
-| postgres       | `127.0.0.1:55432`    |
-| qdrant         | `127.0.0.1:56333`    |
-| zenoh          | `127.0.0.1:57447`    |
-| surrealdb      | `127.0.0.1:58000`    |
+Full local CI-equivalent flow:
 
-## Project Structure
-
+```bash
+make ci
 ```
+
+## 7. Authentication and authorization notes
+
+- Authentication is handled by `apps/api` and `libs/secure`
+- Authorization is permission-based from `role.permissions` in the database
+- Route enforcement stays scope-based through `RequireScope`
+- The `role` claim in JWT is informational; access comes from `scopes`
+
+## 8. Venus application boundary
+
+Venus is now an app-only surface.
+
+- entry flow starts at `/login`
+- dashboard lives under `/dashboard`
+- the old landing page is quarantined and must not be reconnected to the app
+
+Landing archive references:
+
+- [`apps/venus/src/pages/landing/README.md`](./apps/venus/src/pages/landing/README.md)
+- [`apps/venus/src/pages/landing/STRAPI_MIGRATION.md`](./apps/venus/src/pages/landing/STRAPI_MIGRATION.md)
+
+## 9. Handy commands
+
+```bash
+make help
+make ports
+make infra-up
+make api-dev
+make venus-install
+make venus-dev
+make venus-sync-types
+make ci
+```
+
+## 10. Current project shape
+
+```text
 sakaloka-universe/
 ├── apps/
-│   ├── api/                  # Earth — Loco.rs REST API
-│   │   ├── config/           #   YAML configs (dev/test/prod)
-│   │   ├── migration/        #   SeaORM database migrations
-│   │   └── src/
-│   │       ├── controllers/  #   Route handlers
-│   │       ├── models/       #   SeaORM entities
-│   │       ├── views/        #   Response schemas (utoipa)
-│   │       └── middleware/   #   Auth middleware
-│   ├── ockam/                # Mars — Ockam secure transport
-│   ├── venus/                # Venus — Tauri desktop app
-│   │   └── src-tauri/        #   Rust shell (tracked here)
-│   │   └── src/              #   React frontend (from sakapos repo)
-│   └── firmware/             # Mercury — ARM Cortex-M4 (excluded)
+│   ├── api/              # Axum REST API
+│   ├── ockam/            # Ockam node
+│   ├── venus/            # React + Tauri app
+│   └── firmware/         # Excluded from workspace root
 ├── libs/
-│   ├── core/                 # Domain types, traits
-│   ├── secure/               # JWT, RBAC, password hashing
-│   ├── data/                 # DB clients (Surreal, Qdrant, Zenoh)
-│   ├── ai/                   # Burn inference engine
-│   └── hal/                  # Hardware abstraction (no_std)
-├── config/                   # Zenoh config files
+│   ├── core/             # Domain models and shared types
+│   ├── data/             # Surreal/Qdrant/Zenoh integrations
+│   ├── secure/           # JWT, RBAC, password, service auth
+│   ├── ai/               # Local AI integrations
+│   └── hal/              # Hardware abstraction
+├── config/               # Shared runtime config
+├── scripts/              # Operational helper scripts
 ├── docker-compose.yml
-├── .env.example
-└── CLAUDE.md                 # AI assistant instructions
-```
-
-## Two-Repo Workflow
-
-| Repo | URL | Contains |
-|------|-----|----------|
-| `sakaloka-universe` | `CodeWithRiyan/sakaloka-universe` | Rust monorepo + Tauri shell |
-| `sakapos` | `CodeWithRiyan/sakapos` | React frontend |
-
-`apps/venus/` has its own `.git` pointing to `sakapos`. The monorepo's `.gitignore` ignores all frontend files — only `src-tauri/` is tracked by the monorepo.
-
-```bash
-# Pull latest frontend changes
-cd apps/venus
-git pull
-
-# Push Rust changes (from project root)
-cd ../..
-git add . && git commit -m "..." && git push
+├── Makefile
+└── .env.example
 ```

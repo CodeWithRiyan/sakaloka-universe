@@ -289,13 +289,13 @@ export function useStockDetailColumns({
 
   const columns: ColumnDef<StockHistory>[] = [
     {
-      accessorKey: "name",
+      accessorKey: "movementType",
       size: 100,
       header: () => {
         return (
           <SortButton
-            title="Nama"
-            keyName="name"
+            title="Tipe"
+            keyName="movementType"
             sortBy={sortBy}
             sortOrder={sortOrder}
             onSort={handleSort}
@@ -307,34 +307,36 @@ export function useStockDetailColumns({
           <p
             className={cn(
               "text-primary ml-4 font-semibold capitalize",
-              row.original.type === "OUT" && "text-red-500",
-              row.original.type === "IN" && "text-green-500"
+              row.original.movementType === "OUT" && "text-red-500",
+              row.original.movementType === "IN" && "text-green-500"
             )}
           >
-            {row.original.type === "IN"
+            {row.original.movementType === "IN"
               ? "MASUK"
-              : row.original.type === "OUT"
+              : row.original.movementType === "OUT"
                 ? "KELUAR"
-                : row.original.type}
+                : row.original.movementType}
           </p>
         )
       },
     },
     {
-      accessorKey: "reason",
+      accessorKey: "notes",
       size: 100,
       header: () => {
         return (
           <SortButton
             title="Alasan"
-            keyName="reason"
+            keyName="notes"
             sortBy={sortBy}
             sortOrder={sortOrder}
             onSort={handleSort}
           />
         )
       },
-      cell: ({ row }) => <p className="ml-4">{row.original.reason}</p>,
+      cell: ({ row }) => (
+        <p className="ml-4">{row.original.notes || row.original.movementType}</p>
+      ),
     },
     {
       accessorKey: "quantity",

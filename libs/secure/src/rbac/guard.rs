@@ -22,8 +22,8 @@ use tower::{Layer, Service};
 /// Apply at router level:
 /// ```rust,ignore
 /// router.route(
-///     "/entity",
-///     post(create_handler).layer(RequireScope::new(Scope::EntityWrite)),
+///     "/products",
+///     post(create_handler).layer(RequireScope::new(Scope::ProductCreate)),
 /// );
 /// ```
 #[derive(Clone)]
@@ -40,8 +40,8 @@ impl RequireScope {
     /// ```rust
     /// use sakaloka_secure::rbac::{guard::RequireScope, Scope};
     ///
-    /// let guard = RequireScope::new(Scope::EntityWrite);
-    /// assert_eq!(guard.required_scope, Scope::EntityWrite);
+    /// let guard = RequireScope::new(Scope::ProductCreate);
+    /// assert_eq!(guard.required_scope, Scope::ProductCreate);
     /// ```
     pub fn new(scope: Scope) -> Self {
         Self {
@@ -120,5 +120,114 @@ where
 
             inner.call(req).await
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RequireScope;
+    use crate::jwt::user_claims::UserClaims;
+    use crate::rbac::Scope;
+    use axum::{
+        body::{to_bytes, Body},
+        http::{Request, StatusCode},
+        routing::get,
+        Router,
+    };
+    use tower::util::ServiceExt;
+
+    fn claims_with_scopes(scopes: &[&str]) -> UserClaims {
+        UserClaims {
+            sub: "user:test".to_string(),
+            iss: "sakaloka:iam".to_string(),
+            aud: vec!["sakaloka:earth".to_string()],
+            exp: u64::MAX,
+            iat: 1,
+            jti: "token:test".to_string(),
+            role: "tester".to_string(),
+            scopes: scopes.iter().map(|scope| (*scope).to_string()).collect(),
+            session_id: "session:test".to_string(),
+        }
+    }
+
+    fn scoped_router(required_scope: Scope) -> Router {
+        Router::new().route(
+            "/guarded",
+            get(|| async { "ok" }).layer(RequireScope::new(required_scope)),
+        )
+    }
+
+    #[tokio::test]
+    async fn require_scope_allows_request_with_matching_scope() {
+        let app = scoped_router(Scope::ProductRead);
+        let mut request = match Request::builder().uri("/guarded").body(Body::empty()) {
+            Ok(request) => request,
+            Err(error) => panic!("request builder should succeed: {error}"),
+        };
+        request
+            .extensions_mut()
+            .insert(claims_with_scopes(&["product:read"]));
+
+        let response = match app.oneshot(request).await {
+            Ok(response) => response,
+            Err(error) => panic!("router service should return a response: {error:?}"),
+        };
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn require_scope_rejects_request_with_missing_scope() {
+        let app = scoped_router(Scope::ProductDelete);
+        let mut request = match Request::builder().uri("/guarded").body(Body::empty()) {
+            Ok(request) => request,
+            Err(error) => panic!("request builder should succeed: {error}"),
+        };
+        request
+            .extensions_mut()
+            .insert(claims_with_scopes(&["product:read"]));
+
+        let response = match app.oneshot(request).await {
+            Ok(response) => response,
+            Err(error) => panic!("router service should return a response: {error:?}"),
+        };
+        let body = match to_bytes(response.into_body(), usize::MAX).await {
+            Ok(body) => body,
+            Err(error) => panic!("response body should be readable: {error}"),
+        };
+        let json: serde_json::Value = match serde_json::from_slice(&body) {
+            Ok(json) => json,
+            Err(error) => panic!("response body should be valid JSON: {error}"),
+        };
+
+        assert_eq!(json["error"], "forbidden");
+        assert_eq!(json["message"], "Missing required scope: product:delete");
+    }
+
+    #[tokio::test]
+    async fn require_scope_rejects_request_without_claims() {
+        let app = scoped_router(Scope::ProductRead);
+        let request = match Request::builder().uri("/guarded").body(Body::empty()) {
+            Ok(request) => request,
+            Err(error) => panic!("request builder should succeed: {error}"),
+        };
+
+        let response = match app.oneshot(request).await {
+            Ok(response) => response,
+            Err(error) => panic!("router service should return a response: {error:?}"),
+        };
+        let status = response.status();
+        let body = match to_bytes(response.into_body(), usize::MAX).await {
+            Ok(body) => body,
+            Err(error) => panic!("response body should be readable: {error}"),
+        };
+        let json: serde_json::Value = match serde_json::from_slice(&body) {
+            Ok(json) => json,
+            Err(error) => panic!("response body should be valid JSON: {error}"),
+        };
+
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(json["error"], "forbidden");
+        assert_eq!(json["message"], "Missing JWT claims in request extension");
     }
 }

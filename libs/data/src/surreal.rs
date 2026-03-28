@@ -24,6 +24,81 @@ pub struct SurrealClient {
     db: surrealdb::Surreal<surrealdb::engine::remote::ws::Client>,
 }
 
+const ORGANIZATION_SELECT_FIELDS: &str = "id, name, `type` AS org_type, code, description, \
+parent_id, email, phone, website, address, city, state, country, postal_code, tax_number, \
+registration_number, logo, settings, is_active, owner_id, created_at, updated_at";
+
+#[derive(serde::Deserialize, SurrealValueMacro)]
+struct OrganizationRow {
+    id: surrealdb::types::RecordId,
+    name: String,
+    org_type: String,
+    code: Option<String>,
+    description: Option<String>,
+    parent_id: Option<surrealdb::types::RecordId>,
+    email: Option<String>,
+    phone: Option<String>,
+    website: Option<String>,
+    address: Option<String>,
+    city: Option<String>,
+    state: Option<String>,
+    country: Option<String>,
+    postal_code: Option<String>,
+    tax_number: Option<String>,
+    registration_number: Option<String>,
+    logo: Option<String>,
+    settings: Option<serde_json::Value>,
+    is_active: bool,
+    owner_id: Option<surrealdb::types::RecordId>,
+    created_at: surrealdb::types::Datetime,
+    updated_at: surrealdb::types::Datetime,
+}
+
+fn organization_from_row(
+    row: OrganizationRow,
+) -> sakaloka_core::models::organization::Organization {
+    sakaloka_core::models::organization::Organization {
+        id: row.id,
+        name: row.name,
+        org_type: row.org_type,
+        code: row.code,
+        description: row.description,
+        parent_id: row.parent_id,
+        email: row.email,
+        phone: row.phone,
+        website: row.website,
+        address: row.address,
+        city: row.city,
+        state: row.state,
+        country: row.country,
+        postal_code: row.postal_code,
+        tax_number: row.tax_number,
+        registration_number: row.registration_number,
+        logo: row.logo,
+        settings: row.settings,
+        is_active: row.is_active,
+        owner_id: row.owner_id,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
+}
+
+fn organization_from_value(
+    mut value: surrealdb_types::Value,
+) -> Result<sakaloka_core::models::organization::Organization, SurrealError> {
+    if let surrealdb_types::Value::Object(object) = &mut value {
+        if !object.contains_key("org_type") {
+            if let Some(org_type) = object.get("type").cloned() {
+                object.insert("org_type".to_string(), org_type);
+            }
+        }
+    }
+
+    let row = OrganizationRow::from_value(value)
+        .map_err(|e| SurrealError::Query(format!("Failed to deserialize organization row: {e}")))?;
+    Ok(organization_from_row(row))
+}
+
 impl SurrealClient {
     /// Initialize a new SurrealDB connection to a specific endpoint.
     ///
@@ -95,6 +170,60 @@ impl SurrealClient {
             .map_err(|e| SurrealError::Query(e.to_string()))?
             .check()
             .map_err(|e| SurrealError::Query(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Returns whether a migration marker exists for the provided file name.
+    ///
+    /// Migration markers are stored in the `schema_migration` table using the
+    /// migration file name as the record key.
+    ///
+    /// # Errors
+    /// Returns [`SurrealError::Query`] if the lookup fails.
+    pub async fn migration_applied(&self, name: &str) -> Result<bool, SurrealError> {
+        #[derive(serde::Deserialize, SurrealValueMacro)]
+        struct MigrationMarker {
+            id: surrealdb_types::RecordId,
+        }
+
+        let id = surrealdb_types::RecordId::new(
+            "schema_migration",
+            surrealdb_types::RecordIdKey::String(name.to_string()),
+        );
+
+        let mut result = self
+            .db
+            .query("SELECT id FROM $id")
+            .bind(("id", id))
+            .await
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+
+        let marker: Option<MigrationMarker> = result
+            .take(0)
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+
+        Ok(marker.is_some())
+    }
+
+    /// Records a migration marker after a SurrealQL file has been applied.
+    ///
+    /// # Errors
+    /// Returns [`SurrealError::Query`] if the marker cannot be written.
+    pub async fn mark_migration_applied(&self, name: &str) -> Result<(), SurrealError> {
+        let id = surrealdb_types::RecordId::new(
+            "schema_migration",
+            surrealdb_types::RecordIdKey::String(name.to_string()),
+        );
+
+        self.db
+            .query("UPSERT $id MERGE { name: $name, applied_at: time::now() }")
+            .bind(("id", id))
+            .bind(("name", name.to_string()))
+            .await
+            .map_err(|e| SurrealError::Query(e.to_string()))?
+            .check()
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+
         Ok(())
     }
 
@@ -201,7 +330,7 @@ impl SurrealClient {
 
         let mut result = self
             .db
-            .query("SELECT * FROM $id")
+            .query(format!("SELECT {ORGANIZATION_SELECT_FIELDS} FROM $id"))
             .bind(("id", tid))
             .await
             .map_err(|e| SurrealError::Query(e.to_string()))?;
@@ -803,11 +932,11 @@ impl SurrealClient {
             .await
             .map_err(|e| SurrealError::Query(e.to_string()))?;
 
-        let org: Option<sakaloka_core::models::organization::Organization> = result
+        let org: Option<surrealdb_types::Value> = result
             .take(0)
             .map_err(|e| SurrealError::Query(e.to_string()))?;
 
-        Ok(org)
+        org.map(organization_from_value).transpose()
     }
 
     /// Lists organizations with pagination, optional search, and sorting.
@@ -824,7 +953,7 @@ impl SurrealClient {
     ) -> Result<Vec<sakaloka_core::models::organization::Organization>, SurrealError> {
         let sort_col = match sort_by {
             "name" => "name",
-            "type" => "type",
+            "type" => "`type`",
             "is_active" => "is_active",
             _ => "created_at",
         };
@@ -832,13 +961,14 @@ impl SurrealClient {
 
         let query = if search.is_some() {
             format!(
-                "SELECT * FROM organization \
+                "SELECT {ORGANIZATION_SELECT_FIELDS} FROM organization \
                  WHERE string::lowercase(name) CONTAINS string::lowercase($search) \
                  ORDER BY {sort_col} {dir} LIMIT $limit START $start"
             )
         } else {
             format!(
-                "SELECT * FROM organization ORDER BY {sort_col} {dir} LIMIT $limit START $start"
+                "SELECT {ORGANIZATION_SELECT_FIELDS} FROM organization \
+                 ORDER BY {sort_col} {dir} LIMIT $limit START $start"
             )
         };
 
@@ -850,11 +980,11 @@ impl SurrealClient {
 
         let mut result = q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
 
-        let orgs: Vec<sakaloka_core::models::organization::Organization> = result
+        let orgs: Vec<surrealdb_types::Value> = result
             .take(0)
             .map_err(|e| SurrealError::Query(e.to_string()))?;
 
-        Ok(orgs)
+        orgs.into_iter().map(organization_from_value).collect()
     }
 
     /// Counts organizations, optionally filtered by a search term.
@@ -899,6 +1029,11 @@ impl SurrealClient {
         org_type: &str,
         owner_id: Option<&str>,
     ) -> Result<sakaloka_core::models::organization::Organization, SurrealError> {
+        #[derive(serde::Deserialize, SurrealValueMacro)]
+        struct CreatedOrganization {
+            id: surrealdb_types::RecordId,
+        }
+
         let owner_tid = owner_id.map(|o| {
             surrealdb_types::RecordId::new(
                 "user",
@@ -911,7 +1046,7 @@ impl SurrealClient {
             .query(
                 "CREATE organization SET \
                  name = $name, \
-                 type = $org_type, \
+                 `type` = $org_type, \
                  owner_id = $owner_id, \
                  is_active = true",
             )
@@ -921,11 +1056,27 @@ impl SurrealClient {
             .await
             .map_err(|e| SurrealError::Query(e.to_string()))?;
 
-        let org: Option<sakaloka_core::models::organization::Organization> = result
+        let created: Option<CreatedOrganization> = result
             .take(0)
             .map_err(|e| SurrealError::Query(e.to_string()))?;
 
-        org.ok_or_else(|| SurrealError::Query("Failed to create organization".into()))
+        let created =
+            created.ok_or_else(|| SurrealError::Query("Failed to create organization".into()))?;
+
+        let mut reload = self
+            .db
+            .query(format!("SELECT {ORGANIZATION_SELECT_FIELDS} FROM $id"))
+            .bind(("id", created.id))
+            .await
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+
+        let org: Option<surrealdb_types::Value> = reload
+            .take(0)
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+
+        org.map(organization_from_value)
+            .transpose()?
+            .ok_or_else(|| SurrealError::Query("Created organization could not be reloaded".into()))
     }
 
     /// Updates an organization using a MERGE of arbitrary JSON fields.
@@ -942,19 +1093,29 @@ impl SurrealClient {
             surrealdb_types::RecordIdKey::String(id.replace("organization:", "")),
         );
 
+        self.db
+            .query("UPDATE $id MERGE $updates")
+            .bind(("id", tid.clone()))
+            .bind(("updates", updates.clone()))
+            .await
+            .map_err(|e| SurrealError::Query(e.to_string()))?
+            .check()
+            .map_err(|e| SurrealError::Query(e.to_string()))?;
+
         let mut result = self
             .db
-            .query("UPDATE $id MERGE $updates")
+            .query(format!("SELECT {ORGANIZATION_SELECT_FIELDS} FROM $id"))
             .bind(("id", tid))
-            .bind(("updates", updates.clone()))
             .await
             .map_err(|e| SurrealError::Query(e.to_string()))?;
 
-        let org: Option<sakaloka_core::models::organization::Organization> = result
+        let org: Option<surrealdb_types::Value> = result
             .take(0)
             .map_err(|e| SurrealError::Query(e.to_string()))?;
 
-        org.ok_or_else(|| SurrealError::Query("Organization not found or update failed".into()))
+        org.map(organization_from_value)
+            .transpose()?
+            .ok_or_else(|| SurrealError::Query("Organization not found or update failed".into()))
     }
 
     /// Updates the owner of an organization.

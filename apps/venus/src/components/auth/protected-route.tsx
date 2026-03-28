@@ -11,7 +11,7 @@ export function ProtectedRoute({ children }: Props) {
   const { pathname } = useLocation()
 
   if (!isAuthenticated && pathname.includes("/dashboard")) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/login" replace />
   }
 
   if (isAuthenticated && !pathname.includes("/dashboard")) {

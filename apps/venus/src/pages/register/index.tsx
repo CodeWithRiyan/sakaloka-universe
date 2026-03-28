@@ -18,7 +18,7 @@ const RegisterPage = () => {
             className="absolute top-0 right-0 bottom-0 h-full w-[calc(50%+40px)] object-cover object-left"
           />
           <Link
-            to="/"
+            to="/login"
             className="absolute top-0 right-0 hidden h-16 items-center px-10 md:flex"
           >
             <span className="text-xl font-bold text-white">SAKAPOS</span>

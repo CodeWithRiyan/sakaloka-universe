@@ -14,15 +14,26 @@ pub fn routes() -> Router<AppState> {
         .route("/roles", get(handlers::list))
         .route("/roles/permissions", get(handlers::permissions))
         .route("/roles/{id}", get(handlers::show))
-        .route_layer(RequireScope::new(Scope::UserRead));
+        .route_layer(RequireScope::new(Scope::RoleRead));
 
-    let write_routes = Router::new()
-        .route("/roles", axum::routing::post(handlers::create))
-        .route(
-            "/roles/{id}",
-            axum::routing::patch(handlers::update).delete(handlers::remove),
-        )
-        .route_layer(RequireScope::new(Scope::UserManage));
+    let create_routes = Router::new().route(
+        "/roles",
+        axum::routing::post(handlers::create).layer(RequireScope::new(Scope::RoleCreate)),
+    );
 
-    Router::new().merge(read_routes).merge(write_routes)
+    let update_routes = Router::new().route(
+        "/roles/{id}",
+        axum::routing::patch(handlers::update).layer(RequireScope::new(Scope::RoleUpdate)),
+    );
+
+    let delete_routes = Router::new().route(
+        "/roles/{id}",
+        axum::routing::delete(handlers::remove).layer(RequireScope::new(Scope::RoleDelete)),
+    );
+
+    Router::new()
+        .merge(read_routes)
+        .merge(create_routes)
+        .merge(update_routes)
+        .merge(delete_routes)
 }

@@ -22,7 +22,7 @@ fn test_user_jwt_issue_and_validate() {
     let user_id = UserId::new("user:123").unwrap();
     let session_id = SessionId::new();
     let role = "viewer";
-    let scopes = vec!["entity:read"];
+    let scopes = vec!["product:read"];
 
     let token = issue_user_token(&keys, &user_id, role, &scopes, &session_id).unwrap();
     let claims = validate_user_token(&keys, &token).unwrap();

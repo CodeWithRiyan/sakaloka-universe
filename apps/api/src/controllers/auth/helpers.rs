@@ -11,14 +11,15 @@ use crate::views::{
 /// Issue an access token, generate a refresh token, and persist the session.
 ///
 /// Scopes are derived from the `role.permissions` JSON stored in the database
-/// via [`sakaloka_secure::rbac::permission::normalize_permissions`].  The old
-/// `map_rbac_role` path that went through the static RBAC matrix has been
-/// removed; scopes now faithfully reflect what the DB role actually grants.
+/// via [`sakaloka_secure::rbac::permission::validated_scopes`]. The old
+/// hardcoded role-to-matrix path has been removed; scopes now faithfully
+/// reflect what the DB role actually grants.
 ///
 /// # Errors
 ///
 /// Returns [`ApiError::Internal`] if the user ID is invalid, JWT signing fails,
-/// or the session cannot be persisted to the database.
+/// the role permissions are malformed, or the session cannot be persisted to
+/// the database.
 pub async fn issue_tokens_and_session(
     state: &AppState,
     user_id: &str,
@@ -29,9 +30,12 @@ pub async fn issue_tokens_and_session(
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     let session_id = sakaloka_secure::newtypes::SessionId::new();
 
-    // Derive scopes from the DB permissions object rather than the static RBAC matrix.
-    let scopes: Vec<String> =
-        sakaloka_secure::rbac::permission::normalize_permissions(db_permissions);
+    // Fail closed when a DB role carries malformed permissions.
+    let scopes =
+        sakaloka_secure::rbac::permission::validated_scopes(db_permissions).map_err(|e| {
+            tracing::error!(error = %e, role = %role_name, "Role permissions are invalid");
+            ApiError::Internal(anyhow::anyhow!("Role permissions are invalid"))
+        })?;
     let scope_refs: Vec<&str> = scopes.iter().map(|s| s.as_str()).collect();
 
     let access_token = sakaloka_secure::jwt::user_claims::issue_user_token(

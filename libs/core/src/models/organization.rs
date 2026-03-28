@@ -12,7 +12,7 @@ pub struct Organization {
     /// Organization name.
     pub name: String,
     /// Organization type (company, branch, warehouse).
-    #[serde(rename = "type")]
+    #[serde(alias = "type")]
     pub org_type: String,
     /// Optional short code identifier.
     pub code: Option<String>,

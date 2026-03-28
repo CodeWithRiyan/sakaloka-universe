@@ -3,6 +3,9 @@
 **Version:** 1.4 | **Owner:** PT Riyan Solusi Teknologi | **Status:** Active — Full 8-Planet Universe
 **Methodology:** Agile Scrum (2-Week Sprints) | **Confidentiality:** Internal Only
 
+> This root README is the product and architecture PRD.
+> For actual day-to-day development, use [SETUP.md](./SETUP.md), the root [Makefile](./Makefile), and the Venus app guide at [apps/venus/README.md](./apps/venus/README.md).
+
 ---
 
 ## Table of Contents
@@ -272,7 +275,7 @@ The project is structured into 10 two-week sprints covering all 5 phases. Each s
   "iat":        1719996400,
   "jti":        "uuid-v4",
   "role":       "editor",
-  "scopes":     ["entity:read", "entity:write", "search:read"],
+  "scopes":     ["organization:read", "product:read", "product:update"],
   "session_id": "session:01J..."
 }
 ```
@@ -300,7 +303,7 @@ The project is structured into 10 two-week sprints covering all 5 phases. Each s
 
 | Planet | Auth Mechanism | External User Auth? | Service Token Required? | Scopes |
 |---|---|---|---|---|
-| 🌍 **Earth** (Loco.rs) | Validates User JWTs from Venus; issues service tokens to call other planets | ❌ Receives calls from Venus, not humans directly | Issues tokens, doesn't receive them | All |
+| 🌍 **Earth** (Axum) | Validates User JWTs from Venus; issues service tokens to call other planets | ❌ Receives calls from Venus, not humans directly | Issues tokens, doesn't receive them | All |
 | 🌸 **Venus** (React/Tauri) | **Only external user-facing surface.** Handles login UI, stores tokens securely | ✅ Yes — login, register, refresh, logout | ❌ Holds User JWT only | User scopes |
 | 🪐 **Jupiter** (SurrealDB) | `DEFINE TOKEN` validates incoming service JWTs natively — no Earth proxy needed | ❌ Internal only | ✅ Earth's service token (`aud: sakaloka:jupiter`) | `db:read`, `db:write`, `db:delete`, `db:admin` |
 | 🪐 **Saturn** (Zenoh) | Connection-time token validation + per-planet topic ACL | ❌ Internal only | ✅ Per-planet service token | `zenoh:publish`, `zenoh:subscribe` |
@@ -309,18 +312,28 @@ The project is structured into 10 two-week sprints covering all 5 phases. Each s
 
 ---
 
-#### RBAC — Roles & Scope Matrix
+#### RBAC — Roles, DB Permissions, and Scope Matrix
 
 **Roles:** `admin` · `editor` · `viewer` · `service` (internal planets only)
 
+User JWT scopes are now derived from the `role.permissions` JSON stored in the
+database. Business roles should use feature-based permissions such as
+`product:create` or `organization:select`, while technical scopes such as
+`db:write` and `zenoh:publish` are reserved for system/bootstrap or
+service-to-service use.
+
 | Scope | `admin` | `editor` | `viewer` | `service` |
 |---|---|---|---|---|
-| `entity:read` | ✅ | ✅ | ✅ | ✅ |
-| `entity:write` | ✅ | ✅ | ❌ | ✅ |
-| `entity:delete` | ✅ | ❌ | ❌ | ❌ |
-| `search:read` | ✅ | ✅ | ✅ | ✅ |
+| `organization:read` | ✅ | ✅ | ✅ | ❌ |
+| `organization:select` | ✅ | ✅ | ❌ | ❌ |
+| `product:read` | ✅ | ✅ | ✅ | ❌ |
+| `product:create` | ✅ | ✅ | ❌ | ❌ |
+| `product:update` | ✅ | ✅ | ❌ | ❌ |
+| `product:delete` | ✅ | ❌ | ❌ | ❌ |
+| `role:read` | ✅ | ❌ | ❌ | ❌ |
+| `role:update` | ✅ | ❌ | ❌ | ❌ |
 | `user:read` | ✅ | ❌ | ❌ | ❌ |
-| `user:manage` | ✅ | ❌ | ❌ | ❌ |
+| `user:update` | ✅ | ❌ | ❌ | ❌ |
 | `db:read` | ✅ | ❌ | ❌ | ✅ |
 | `db:write` | ✅ | ❌ | ❌ | ✅ |
 | `db:admin` | ✅ | ❌ | ❌ | ❌ |
@@ -350,11 +363,11 @@ Venus  ←  { access_token, refresh_token }  ←  Earth
 
 **Authenticated request flow:**
 ```
-Venus  →  GET /entity/123
+Venus  →  GET /products/123
           Authorization: Bearer <access_token>  →  Earth
                                                       │
                                            validate_user_jwt()
-                                           check scope: entity:read
+                                           check scope: product:read
                                                       │
                                            get_service_token(Jupiter, 5min)
                                                       │
@@ -443,7 +456,7 @@ libs/secure/
 | ID | User Story | Acceptance Criteria | Points | Priority |
 |---|---|---|---|---|
 | US-11 | As a developer, I want Newtype wrappers (`EmailAddress`, `Username`, `Password`, `Planet`, `TokenId`) so raw strings never enter business logic. | Construction returns `Result`; invalid input produces a descriptive error; no `.unwrap()` anywhere in newtypes | 8 | 🔴 Critical |
-| US-12 | As a developer, I want `RequireScope` middleware applied to every Earth route so access is enforced by fine-grained permission scopes at the framework level. | 403 returned for insufficient scope with structured error body; `viewer` role blocked from `entity:write` routes | 8 | 🔴 Critical |
+| US-12 | As a developer, I want `RequireScope` middleware applied to every Earth route so access is enforced by fine-grained permission scopes at the framework level. | 403 returned for insufficient scope with structured error body; `viewer` role blocked from `product:update` routes | 8 | 🔴 Critical |
 | US-30 | As a developer, I want SurrealDB configured with `DEFINE TOKEN` using `SAKALOKA_JWT_SECRET` so Jupiter validates incoming service JWTs natively without an Earth proxy. | SurrealDB rejects tokens with wrong `aud` or invalid signature; `db:read` tokens cannot execute mutations | 8 | 🔴 Critical |
 | US-31 | As a developer, I want Zenoh topic ACLs configured per planet so no service can publish or subscribe outside its designated namespace. | Earth blocked from publishing to `sakaloka/jupiter/**`; ACL violations logged with planet identity; Venus has zero direct Zenoh access | 5 | 🔴 Critical |
 | US-13 | As a QA engineer, I want doc-tests for every public function in `libs/secure` so the IAM documentation is always executable and correct. | `cargo test` runs all doc examples; zero failures; `#![deny(missing_docs)]` passes for entire crate | 3 | 🟠 High |

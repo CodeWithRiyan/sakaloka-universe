@@ -15,13 +15,24 @@ pub fn routes() -> Router<AppState> {
         .route("/users/{id}", get(handlers::show))
         .route_layer(RequireScope::new(Scope::UserRead));
 
-    let write_routes = Router::new()
-        .route("/users", axum::routing::post(handlers::create))
-        .route(
-            "/users/{id}",
-            axum::routing::patch(handlers::update).delete(handlers::remove),
-        )
-        .route_layer(RequireScope::new(Scope::UserManage));
+    let create_routes = Router::new().route(
+        "/users",
+        axum::routing::post(handlers::create).layer(RequireScope::new(Scope::UserCreate)),
+    );
 
-    Router::new().merge(read_routes).merge(write_routes)
+    let update_routes = Router::new().route(
+        "/users/{id}",
+        axum::routing::patch(handlers::update).layer(RequireScope::new(Scope::UserUpdate)),
+    );
+
+    let delete_routes = Router::new().route(
+        "/users/{id}",
+        axum::routing::delete(handlers::remove).layer(RequireScope::new(Scope::UserDelete)),
+    );
+
+    Router::new()
+        .merge(read_routes)
+        .merge(create_routes)
+        .merge(update_routes)
+        .merge(delete_routes)
 }

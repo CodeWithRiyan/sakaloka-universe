@@ -28,5 +28,14 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/pages/landing/**/*",
+    "src/components/layouts/public/**/*",
+    "src/components/custom/accordion.tsx",
+    "src/components/custom/orbiting-circles.tsx",
+    "src/components/custom/pricing.tsx",
+    "src/components/custom/star-rating.tsx",
+    "src/components/custom/word-rotate.tsx"
+  ]
 }

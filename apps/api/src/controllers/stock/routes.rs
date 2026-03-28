@@ -17,14 +17,15 @@ pub fn routes() -> Router<AppState> {
         .route("/inventory/pos-stock", get(handlers::list))
         .route("/inventory/pos-stock/low-stock", get(handlers::low_stock))
         .route("/inventory/pos-stock/{id}", get(handlers::show))
-        .route("/inventory/pos-stock/{id}/history", get(handlers::history));
+        .route("/inventory/pos-stock/{id}/history", get(handlers::history))
+        .route_layer(RequireScope::new(Scope::StockRead));
 
     let write_routes = Router::new()
         .route(
             "/inventory/pos-stock/products/{product_id}/adjust",
             post(handlers::adjust),
         )
-        .route_layer(RequireScope::new(Scope::EntityWrite));
+        .route_layer(RequireScope::new(Scope::StockUpdate));
 
     Router::new().merge(read_routes).merge(write_routes)
 }

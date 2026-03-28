@@ -49,7 +49,8 @@ use utoipa::OpenApi;
         sakaloka_api::views::role::RoleResponse,
         sakaloka_api::views::role::CreateRoleRequest,
         sakaloka_api::views::role::UpdateRoleRequest,
-        sakaloka_api::views::role::PermissionsResponse,
+        sakaloka_api::views::role::PermissionActionResponse,
+        sakaloka_api::views::role::PermissionModuleResponse,
         // Organization
         sakaloka_api::views::organization::OrganizationResponse,
         sakaloka_api::views::organization::CreateOrgRequest,

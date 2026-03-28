@@ -10,8 +10,8 @@ DEFINE FIELD name ON role TYPE string ASSERT string::len($value) > 0;
 -- Optional description of what this role grants
 DEFINE FIELD description ON role TYPE option<string>;
 
--- Permissions object (e.g. { "entity:read": true, "entity:write": true })
-DEFINE FIELD permissions ON role TYPE option<object>;
+-- Permissions object (e.g. { product: ['read', 'update'], organization: ['read', 'select'] })
+DEFINE FIELD permissions ON role TYPE option<object> FLEXIBLE;
 
 -- Owning organization (required)
 DEFINE FIELD organization_id ON role TYPE record<organization>;

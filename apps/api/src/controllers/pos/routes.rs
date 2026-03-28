@@ -14,15 +14,21 @@ pub fn routes() -> Router<AppState> {
         .route("/pos/orders", get(handlers::list_orders))
         .route("/pos/orders/active", get(handlers::active_orders))
         .route("/pos/orders/history", get(handlers::order_history))
-        .route("/pos/orders/{id}", get(handlers::show_order));
+        .route("/pos/orders/{id}", get(handlers::show_order))
+        .route_layer(RequireScope::new(Scope::PosRead));
 
-    let write_routes = Router::new()
-        .route("/pos/orders", axum::routing::post(handlers::create_order))
-        .route(
-            "/pos/orders/{id}",
-            axum::routing::patch(handlers::update_order),
-        )
-        .route_layer(RequireScope::new(Scope::EntityWrite));
+    let create_routes = Router::new().route(
+        "/pos/orders",
+        axum::routing::post(handlers::create_order).layer(RequireScope::new(Scope::PosCreate)),
+    );
 
-    Router::new().merge(read_routes).merge(write_routes)
+    let update_routes = Router::new().route(
+        "/pos/orders/{id}",
+        axum::routing::patch(handlers::update_order).layer(RequireScope::new(Scope::PosUpdate)),
+    );
+
+    Router::new()
+        .merge(read_routes)
+        .merge(create_routes)
+        .merge(update_routes)
 }

@@ -9,7 +9,10 @@ use crate::app::AppState;
 use crate::error::ApiError;
 use crate::helpers::error_map::db_err;
 use crate::views::{
-    role::{CreateRoleRequest, PermissionsResponse, RoleResponse, UpdateRoleRequest},
+    role::{
+        CreateRoleRequest, PermissionActionResponse, PermissionModuleResponse, RoleResponse,
+        UpdateRoleRequest,
+    },
     ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
@@ -54,19 +57,26 @@ pub async fn list(
     }))
 }
 
-/// `GET /api/roles/permissions` — list all available permissions.
-///
-/// Returns the complete canonical scope vocabulary so the frontend can render
-/// permission checkboxes without hard-coding strings on the client side.
-pub async fn permissions() -> Result<Json<ApiResponse<PermissionsResponse>>, ApiError> {
-    let all = sakaloka_secure::rbac::permission::normalize_permissions(
-        &sakaloka_secure::rbac::permission::full_permissions(),
-    );
+/// `GET /api/roles/permissions` — list all available business permissions.
+pub async fn permissions() -> Result<Json<ApiResponse<Vec<PermissionModuleResponse>>>, ApiError> {
+    let modules = sakaloka_secure::rbac::permission::business_permission_catalog()
+        .into_iter()
+        .map(|module| PermissionModuleResponse {
+            key: module.key.to_string(),
+            label: module.label.to_string(),
+            description: module.description.to_string(),
+            permissions: module
+                .permissions
+                .iter()
+                .map(|action| PermissionActionResponse {
+                    key: action.key.to_string(),
+                    label: action.label.to_string(),
+                })
+                .collect(),
+        })
+        .collect();
 
-    Ok(Json(ApiResponse::ok(
-        PermissionsResponse { permissions: all },
-        "Permissions retrieved",
-    )))
+    Ok(Json(ApiResponse::ok(modules, "Permissions retrieved")))
 }
 
 /// `GET /api/roles/:id` — fetch a single role.
@@ -119,10 +129,10 @@ pub async fn create(
 
     // Validate that every permission entry is a known canonical scope.
     if let Err(unknown) =
-        sakaloka_secure::rbac::permission::validate_permissions(&payload.permissions)
+        sakaloka_secure::rbac::permission::validate_business_permissions(&payload.permissions)
     {
         return Ok(Json(ApiResponse::validation(vec![format!(
-            "Unknown permission: {unknown}"
+            "Invalid permissions payload: {unknown}"
         )])));
     }
 
@@ -165,9 +175,11 @@ pub async fn update(
 
     // Validate incoming permissions before writing to the DB.
     if let Some(perms) = payload.permissions.as_ref() {
-        if let Err(unknown) = sakaloka_secure::rbac::permission::validate_permissions(perms) {
+        if let Err(unknown) =
+            sakaloka_secure::rbac::permission::validate_business_permissions(perms)
+        {
             return Ok(Json(ApiResponse::validation(vec![format!(
-                "Unknown permission: {unknown}"
+                "Invalid permissions payload: {unknown}"
             )])));
         }
     }

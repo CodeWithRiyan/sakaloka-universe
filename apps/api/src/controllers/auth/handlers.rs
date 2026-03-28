@@ -113,10 +113,15 @@ pub async fn login(
 
     // 4. Issue tokens + persist session — scopes are derived from the DB role's
     //    permissions object, not the static RBAC matrix.
-    let role_permissions = role
-        .permissions
-        .clone()
-        .unwrap_or_else(|| serde_json::json!({}));
+    let role_permissions = match role.permissions.clone() {
+        Some(perms) => perms,
+        None => {
+            return Ok(Json(ApiResponse::error(
+                "incomplete_profile",
+                "User role has no permissions assigned. Contact an administrator.",
+            )))
+        }
+    };
     let (access_token, refresh_token) =
         issue_tokens_and_session(&state, &user_id_str, &role.name, &role_permissions).await?;
 
@@ -168,14 +173,20 @@ pub async fn register(
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to hash password")))?;
 
     // 3. Create account entities (org → role → user → set owner)
-    let (org_id_str, role_id_str, user_id_str) =
+    let (org_id_str, role, user_id_str) =
         create_account_entities(&state, &payload, &password_hash).await?;
+    let role_id_str = record_id_to_string(&role.id);
 
-    // 4. Issue tokens + persist session — use the full admin permissions that were
-    //    seeded in create_account_entities so scopes match what the DB actually stores.
-    let admin_permissions = sakaloka_secure::rbac::permission::full_permissions();
+    // 4. Issue tokens + persist session — use the persisted admin permissions that were
+    //    persisted on the newly-created DB role so the token always reflects
+    //    the actual source of truth.
+    let role_permissions = role.permissions.clone().ok_or_else(|| {
+        ApiError::Internal(anyhow::anyhow!(
+            "Created admin role is missing persisted permissions"
+        ))
+    })?;
     let (access_token, refresh_token) =
-        issue_tokens_and_session(&state, &user_id_str, "admin", &admin_permissions).await?;
+        issue_tokens_and_session(&state, &user_id_str, &role.name, &role_permissions).await?;
 
     let response = LoginResponse {
         access_token,
@@ -191,8 +202,8 @@ pub async fn register(
             },
             role: RoleSummary {
                 id: role_id_str,
-                name: "admin".to_string(),
-                permissions: admin_permissions,
+                name: role.name,
+                permissions: role_permissions,
             },
             preferences: serde_json::json!({}),
         },
@@ -210,9 +221,9 @@ async fn create_account_entities(
     state: &AppState,
     payload: &RegisterRequest,
     password_hash: &str,
-) -> Result<(String, String, String), ApiError> {
-    // All admin permissions derived from the canonical vocabulary.
-    let admin_permissions = sakaloka_secure::rbac::permission::full_permissions();
+) -> Result<(String, sakaloka_core::models::role::Role, String), ApiError> {
+    // All admin permissions derived from the business permission vocabulary.
+    let admin_permissions = sakaloka_secure::rbac::permission::full_business_permissions();
 
     // Step 1: Create organization
     let org = state
@@ -270,7 +281,7 @@ async fn create_account_entities(
         )));
     }
 
-    Ok((org_id, role_id, user_id))
+    Ok((org_id, role, user_id))
 }
 
 /// `POST /api/auth/refresh` — exchange a refresh token for new tokens.

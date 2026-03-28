@@ -17,16 +17,32 @@ pub fn routes() -> Router<AppState> {
         .route("/organizations", get(handlers::list))
         .route("/organizations/current", get(handlers::current))
         .route("/organizations/{id}", get(handlers::show))
-        .route_layer(RequireScope::new(Scope::EntityRead));
+        .route_layer(RequireScope::new(Scope::OrganizationRead));
 
-    let write_routes = Router::new()
-        .route("/organizations", post(handlers::create))
-        .route("/organizations/select", post(handlers::select))
-        .route(
-            "/organizations/{id}",
-            axum::routing::patch(handlers::update).delete(handlers::remove),
-        )
-        .route_layer(RequireScope::new(Scope::EntityWrite));
+    let create_routes = Router::new().route(
+        "/organizations",
+        post(handlers::create).layer(RequireScope::new(Scope::OrganizationCreate)),
+    );
 
-    Router::new().merge(read_routes).merge(write_routes)
+    let select_routes = Router::new().route(
+        "/organizations/select",
+        post(handlers::select).layer(RequireScope::new(Scope::OrganizationSelect)),
+    );
+
+    let update_routes = Router::new().route(
+        "/organizations/{id}",
+        axum::routing::patch(handlers::update).layer(RequireScope::new(Scope::OrganizationUpdate)),
+    );
+
+    let delete_routes = Router::new().route(
+        "/organizations/{id}",
+        axum::routing::delete(handlers::remove).layer(RequireScope::new(Scope::OrganizationDelete)),
+    );
+
+    Router::new()
+        .merge(read_routes)
+        .merge(create_routes)
+        .merge(select_routes)
+        .merge(update_routes)
+        .merge(delete_routes)
 }

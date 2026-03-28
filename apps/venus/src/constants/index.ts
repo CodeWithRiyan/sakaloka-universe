@@ -14,7 +14,7 @@ export const INIT_PAGINATION_META = {
 
 export const BASE_URL = import.meta.env.VITE_BASE_URL || "http://localhost:3000"
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "https://dev-api-erp.riyansolusi.com/api"
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api"
 
 export const DEFAULT_LOGIN_REDIRECT_URL = "/dashboard"
 

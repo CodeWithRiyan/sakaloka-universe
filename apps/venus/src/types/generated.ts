@@ -25,99 +25,69 @@ export interface components {
         };
         /** @description Full brand response DTO. */
         BrandResponse: {
-            /**
-             * Format: date-time
-             * @description Record creation timestamp.
-             */
+            /** @description Record creation timestamp. */
             createdAt: string;
-            /**
-             * Format: uuid
-             * @description User who created this brand.
-             */
+            /** @description User who created this brand. */
             createdBy?: string | null;
             /** @description Optional description. */
             description?: string | null;
-            /**
-             * Format: uuid
-             * @description Brand ID.
-             */
+            /** @description Brand ID. */
             id: string;
+            /** @description Whether the brand is active. */
+            isActive: boolean;
             /** @description Optional logo URL. */
             logo?: string | null;
             /** @description Brand name. */
             name: string;
-            /**
-             * Format: uuid
-             * @description Owning organization ID.
-             */
+            /** @description Owning organization ID. */
             organizationId: string;
             /** @description URL-friendly slug. */
             slug: string;
-            /**
-             * Format: date-time
-             * @description Record last-update timestamp.
-             */
+            /** @description Record last-update timestamp. */
             updatedAt: string;
             /** @description Optional website URL. */
             website?: string | null;
         };
         /** @description Abbreviated brand info embedded in product responses. */
         BrandSummary: {
-            /**
-             * Format: uuid
-             * @description Brand ID.
-             */
+            /** @description Brand ID. */
             id: string;
             /** @description Brand name. */
             name: string;
         };
         /** @description Full category response DTO. */
         CategoryResponse: {
-            /**
-             * Format: date-time
-             * @description Record creation timestamp.
-             */
+            /** @description Record creation timestamp. */
             createdAt: string;
-            /**
-             * Format: uuid
-             * @description User who created this category.
-             */
+            /** @description User who created this category. */
             createdBy?: string | null;
             /** @description Optional description. */
             description?: string | null;
-            /**
-             * Format: uuid
-             * @description Category ID.
-             */
+            /** @description Category ID. */
             id: string;
             /** @description Optional image URL. */
             imageUrl?: string | null;
+            /** @description Whether the category is active. */
+            isActive: boolean;
             /** @description Category name. */
             name: string;
-            /**
-             * Format: uuid
-             * @description Owning organization ID.
-             */
+            /** @description Owning organization ID. */
             organizationId: string;
-            /**
-             * Format: uuid
-             * @description Optional parent category ID for hierarchy.
-             */
+            /** @description Optional parent category ID for hierarchy. */
             parentId?: string | null;
             /** @description URL-friendly slug. */
             slug: string;
             /**
-             * Format: date-time
-             * @description Record last-update timestamp.
+             * Format: int64
+             * @description Display sort order.
              */
+            sortOrder: number;
+            /** @description Record last-update timestamp. */
             updatedAt: string;
         };
         /** @description Abbreviated category info embedded in product responses. */
         CategorySummary: {
-            /**
-             * Format: uuid
-             * @description Category ID.
-             */
+            /** @description Category ID. */
             id: string;
             /** @description Category name. */
             name: string;
@@ -141,20 +111,14 @@ export interface components {
             imageUrl?: string | null;
             /** @description Category name. */
             name: string;
-            /**
-             * Format: uuid
-             * @description Optional parent category ID.
-             */
+            /** @description Optional parent category ID. */
             parentId?: string | null;
         };
         /** @description Order item within a create order request. */
         CreateOrderItemRequest: {
             /** @description Optional custom item name override. */
             itemName?: string | null;
-            /**
-             * Format: uuid
-             * @description Product ID.
-             */
+            /** @description Product ID. */
             productId: string;
             /**
              * Format: int32
@@ -195,10 +159,7 @@ export interface components {
             logo?: string | null;
             /** @description Organization name. */
             name: string;
-            /**
-             * Format: uuid
-             * @description Optional parent organization ID.
-             */
+            /** @description Optional parent organization ID. */
             parentId?: string | null;
             /** @description Optional contact phone. */
             phone?: string | null;
@@ -226,15 +187,9 @@ export interface components {
              * @description Base selling price in smallest currency unit.
              */
             basePrice: number;
-            /**
-             * Format: uuid
-             * @description Optional brand ID.
-             */
+            /** @description Optional brand ID. */
             brandId?: string | null;
-            /**
-             * Format: uuid
-             * @description Optional category ID.
-             */
+            /** @description Optional category ID. */
             categoryId?: string | null;
             /**
              * Format: int64
@@ -250,7 +205,7 @@ export interface components {
             /** @description Whether the product is featured (default false). */
             isFeatured?: boolean | null;
             /**
-             * Format: int32
+             * Format: int64
              * @description Optional minimum stock level.
              */
             minStockLevel?: number | null;
@@ -258,8 +213,8 @@ export interface components {
             name: string;
             /** @description Stock keeping unit (unique within organization). */
             sku: string;
-            /** @description Optional tags as JSON. */
-            tags?: unknown;
+            /** @description Optional tags for search and filtering. */
+            tags?: string[] | null;
             /** @description Whether to track inventory (default false). */
             trackInventory?: boolean | null;
             /**
@@ -287,10 +242,7 @@ export interface components {
             isActive?: boolean | null;
             /** @description Plaintext password (will be hashed before storage). */
             password: string;
-            /**
-             * Format: uuid
-             * @description Role ID to assign.
-             */
+            /** @description Role ID to assign. */
             roleId: string;
         };
         /** @description Active sort filters echoed back to the frontend. */
@@ -309,7 +261,7 @@ export interface components {
             email: string;
             /**
              * @description Plaintext password.
-             * @example sakaloka-dev
+             * @example sakaloka-dev-01
              */
             password: string;
         };
@@ -329,17 +281,11 @@ export interface components {
              * @description Base selling price.
              */
             basePrice: number;
-            /**
-             * Format: uuid
-             * @description Category ID.
-             */
+            /** @description Category ID. */
             categoryId?: string | null;
             /** @description Category name (if resolved). */
             categoryName?: string | null;
-            /**
-             * Format: uuid
-             * @description Product ID.
-             */
+            /** @description Product ID. */
             id: string;
             /** @description Image URL. */
             imageUrl?: string | null;
@@ -352,27 +298,22 @@ export interface components {
         };
         /** @description Single order item response DTO. */
         OrderItemResponse: {
-            /**
-             * Format: date-time
-             * @description Record creation timestamp.
-             */
+            /** @description Record creation timestamp. */
             createdAt: string;
             /**
-             * Format: uuid
-             * @description Order item ID.
+             * Format: int64
+             * @description Discount applied to this line item.
              */
+            discountAmount: number;
+            /** @description Order item ID. */
             id: string;
             /** @description Item name snapshot. */
             itemName: string;
-            /**
-             * Format: uuid
-             * @description Parent order ID.
-             */
+            /** @description Optional item-level notes. */
+            notes?: string | null;
+            /** @description Parent order ID. */
             orderId: string;
-            /**
-             * Format: uuid
-             * @description Product ID.
-             */
+            /** @description Product ID. */
             productId: string;
             /**
              * Format: int32
@@ -392,20 +333,11 @@ export interface components {
         };
         /** @description Full order response DTO. */
         OrderResponse: {
-            /**
-             * Format: date-time
-             * @description Record creation timestamp.
-             */
+            /** @description Record creation timestamp. */
             createdAt: string;
-            /**
-             * Format: uuid
-             * @description User who created this order.
-             */
+            /** @description User who created this order. */
             createdBy?: string | null;
-            /**
-             * Format: uuid
-             * @description Optional customer user ID.
-             */
+            /** @description Optional customer user ID. */
             customerId?: string | null;
             /** @description Walk-in customer name. */
             customerName?: string | null;
@@ -414,10 +346,7 @@ export interface components {
              * @description Discount amount.
              */
             discountAmount: number;
-            /**
-             * Format: uuid
-             * @description Order ID.
-             */
+            /** @description Order ID. */
             id: string;
             /** @description Order items (populated when fetching a single order). */
             items?: components["schemas"]["OrderItemResponse"][] | null;
@@ -425,10 +354,7 @@ export interface components {
             notes?: string | null;
             /** @description Unique order number. */
             orderNumber: string;
-            /**
-             * Format: uuid
-             * @description Organization ID.
-             */
+            /** @description Organization ID. */
             organizationId: string;
             /**
              * Format: int64
@@ -460,15 +386,9 @@ export interface components {
             totalAmount: number;
             /** @description Order type (dine_in, takeaway, delivery). */
             type: string;
-            /**
-             * Format: date-time
-             * @description Record last-update timestamp.
-             */
+            /** @description Record last-update timestamp. */
             updatedAt: string;
-            /**
-             * Format: uuid
-             * @description User who last updated this order.
-             */
+            /** @description User who last updated this order. */
             updatedBy?: string | null;
         };
         /** @description Abbreviated organization data included in auth responses. */
@@ -490,19 +410,13 @@ export interface components {
             code?: string | null;
             /** @description Optional country. */
             country?: string | null;
-            /**
-             * Format: date-time
-             * @description Record creation timestamp.
-             */
+            /** @description Record creation timestamp. */
             createdAt: string;
             /** @description Optional description. */
             description?: string | null;
             /** @description Optional contact email. */
             email?: string | null;
-            /**
-             * Format: uuid
-             * @description Organization ID.
-             */
+            /** @description Organization ID. */
             id: string;
             /** @description Whether the organization is active. */
             isActive: boolean;
@@ -510,15 +424,9 @@ export interface components {
             logo?: string | null;
             /** @description Organization name. */
             name: string;
-            /**
-             * Format: uuid
-             * @description Optional owner user ID.
-             */
+            /** @description Optional owner user ID. */
             ownerId?: string | null;
-            /**
-             * Format: uuid
-             * @description Optional parent organization ID.
-             */
+            /** @description Optional parent organization ID. */
             parentId?: string | null;
             /** @description Optional contact phone. */
             phone?: string | null;
@@ -534,10 +442,7 @@ export interface components {
             taxNumber?: string | null;
             /** @description Organization type. */
             type: string;
-            /**
-             * Format: date-time
-             * @description Record last-update timestamp.
-             */
+            /** @description Record last-update timestamp. */
             updatedAt: string;
             /** @description Optional website URL. */
             website?: string | null;
@@ -569,10 +474,23 @@ export interface components {
              */
             total: number;
         };
-        /** @description Response listing all available permissions. */
-        PermissionsResponse: {
-            /** @description List of all known permission strings. */
-            permissions: string[];
+        /** @description UI-facing permission action metadata. */
+        PermissionActionResponse: {
+            /** @description Action key stored under a module. */
+            key: string;
+            /** @description Human-readable label. */
+            label: string;
+        };
+        /** @description UI-facing business permission module metadata. */
+        PermissionModuleResponse: {
+            /** @description Short description for UI presentation. */
+            description: string;
+            /** @description Module key stored in `role.permissions`. */
+            key: string;
+            /** @description Human-readable label. */
+            label: string;
+            /** @description Allowed actions for the module. */
+            permissions: components["schemas"]["PermissionActionResponse"][];
         };
         /** @description Product list response DTO (includes variant count). */
         ProductListResponse: {
@@ -586,33 +504,21 @@ export interface components {
              */
             basePrice: number;
             brand?: null | components["schemas"]["BrandSummary"];
-            /**
-             * Format: uuid
-             * @description Brand ID.
-             */
+            /** @description Brand ID. */
             brandId?: string | null;
             category?: null | components["schemas"]["CategorySummary"];
-            /**
-             * Format: uuid
-             * @description Category ID.
-             */
+            /** @description Category ID. */
             categoryId?: string | null;
             /**
              * Format: int64
              * @description Cost price.
              */
             costPrice?: number | null;
-            /**
-             * Format: date-time
-             * @description Record creation timestamp.
-             */
+            /** @description Record creation timestamp. */
             createdAt: string;
             /** @description Optional product description. */
             description?: string | null;
-            /**
-             * Format: uuid
-             * @description Product ID.
-             */
+            /** @description Product ID. */
             id: string;
             /** @description Image URL. */
             imageUrl?: string | null;
@@ -620,19 +526,13 @@ export interface components {
             isFeatured: boolean;
             /** @description Product name. */
             name: string;
-            /**
-             * Format: uuid
-             * @description Owning organization ID.
-             */
+            /** @description Owning organization ID. */
             organizationId: string;
             /** @description Stock keeping unit. */
             sku: string;
-            /** @description Tags as JSON. */
-            tags?: unknown;
-            /**
-             * Format: date-time
-             * @description Record last-update timestamp.
-             */
+            /** @description Tags for search and filtering. */
+            tags?: string[] | null;
+            /** @description Record last-update timestamp. */
             updatedAt: string;
         };
         /** @description Full product response DTO. */
@@ -645,67 +545,46 @@ export interface components {
              */
             basePrice: number;
             brand?: null | components["schemas"]["BrandSummary"];
-            /**
-             * Format: uuid
-             * @description Brand ID.
-             */
+            /** @description Brand ID. */
             brandId?: string | null;
             category?: null | components["schemas"]["CategorySummary"];
-            /**
-             * Format: uuid
-             * @description Category ID.
-             */
+            /** @description Category ID. */
             categoryId?: string | null;
             /**
              * Format: int64
              * @description Optional cost price in smallest currency unit.
              */
             costPrice?: number | null;
-            /**
-             * Format: date-time
-             * @description Record creation timestamp.
-             */
+            /** @description Record creation timestamp. */
             createdAt: string;
-            /**
-             * Format: date-time
-             * @description Soft-delete timestamp.
-             */
+            /** @description Soft-delete timestamp. */
             deletedAt?: string | null;
             /** @description Optional product description. */
             description?: string | null;
             /** @description Dimensions as JSON. */
             dimensions?: unknown;
-            /**
-             * Format: uuid
-             * @description Product ID.
-             */
+            /** @description Product ID. */
             id: string;
             /** @description Image URL. */
             imageUrl?: string | null;
             /** @description Whether the product is featured. */
             isFeatured: boolean;
             /**
-             * Format: int32
+             * Format: int64
              * @description Minimum stock level threshold.
              */
-            minStockLevel?: number | null;
+            minStockLevel: number;
             /** @description Product name. */
             name: string;
-            /**
-             * Format: uuid
-             * @description Owning organization ID.
-             */
+            /** @description Owning organization ID. */
             organizationId: string;
             /** @description Stock keeping unit. */
             sku: string;
-            /** @description Tags as JSON. */
-            tags?: unknown;
+            /** @description Tags for search and filtering. */
+            tags?: string[] | null;
             /** @description Whether inventory tracking is enabled. */
             trackInventory: boolean;
-            /**
-             * Format: date-time
-             * @description Record last-update timestamp.
-             */
+            /** @description Record last-update timestamp. */
             updatedAt: string;
             /**
              * Format: double
@@ -743,20 +622,13 @@ export interface components {
         };
         /** @description Full role response DTO. */
         RoleResponse: {
-            /**
-             * Format: date-time
-             * @description Record creation timestamp.
-             */
+            /** @description Record creation timestamp. */
             createdAt: string;
-            /**
-             * Format: uuid
-             * @description User who created this role.
-             */
+            /** @description User who created this role. */
             createdBy?: string | null;
-            /**
-             * Format: uuid
-             * @description Role ID.
-             */
+            /** @description Optional description. */
+            description?: string | null;
+            /** @description Role ID. */
             id: string;
             /** @description Whether the role is active. */
             isActive: boolean;
@@ -764,17 +636,11 @@ export interface components {
             isSystemRole: boolean;
             /** @description Role name. */
             name: string;
-            /**
-             * Format: uuid
-             * @description Organization ID.
-             */
+            /** @description Organization ID. */
             organizationId: string;
             /** @description JSON permissions for this role. */
-            permissions: unknown;
-            /**
-             * Format: date-time
-             * @description Record last-update timestamp.
-             */
+            permissions?: unknown;
+            /** @description Record last-update timestamp. */
             updatedAt: string;
         };
         /** @description Abbreviated role data included in auth responses. */
@@ -788,33 +654,18 @@ export interface components {
         };
         /** @description Request body to select / switch to a different organization. */
         SelectOrgRequest: {
-            /**
-             * Format: uuid
-             * @description ID of the organization to switch to.
-             */
+            /** @description ID of the organization to switch to. */
             organizationId: string;
         };
         /** @description Stock movement history entry response DTO. */
         StockHistoryResponse: {
-            /**
-             * Format: date-time
-             * @description Record creation timestamp.
-             */
+            /** @description Record creation timestamp. */
             createdAt: string;
-            /**
-             * Format: uuid
-             * @description User who created the movement.
-             */
+            /** @description User who created the movement. */
             createdBy?: string | null;
-            /**
-             * Format: uuid
-             * @description Movement ID.
-             */
+            /** @description Movement ID. */
             id: string;
-            /**
-             * Format: uuid
-             * @description Inventory item ID.
-             */
+            /** @description Inventory item ID. */
             inventoryItemId: string;
             /** @description Type of movement (purchase, sale, adjustment, etc.). */
             movementType: string;
@@ -825,58 +676,19 @@ export interface components {
              * @description Quantity moved.
              */
             quantity: number;
-            /**
-             * Format: int32
-             * @description Signed quantity change.
-             */
-            quantityChange: number;
-            /** @description Reason for the movement. */
-            reason: string;
-            /** @description Optional reference (order number, PO, etc.). */
-            reference?: string | null;
-            /**
-             * Format: int32
-             * @description Inventory after this movement.
-             */
-            totalAfter: number;
-            /**
-             * Format: int32
-             * @description Inventory before this movement.
-             */
-            totalBefore: number;
+            /** @description Optional reference document ID. */
+            referenceId?: string | null;
+            /** @description Optional reference type (order, purchase_order). */
+            referenceType?: string | null;
         };
         /** @description Full stock (inventory item) response DTO. */
         StockResponse: {
-            /**
-             * Format: int64
-             * @description Average cost per unit.
-             */
-            averageCost?: number | null;
-            /**
-             * Format: date-time
-             * @description Record creation timestamp.
-             */
+            /** @description Record creation timestamp. */
             createdAt: string;
-            /**
-             * Format: uuid
-             * @description Inventory item ID.
-             */
+            /** @description Inventory item ID. */
             id: string;
-            /**
-             * Format: int64
-             * @description Last purchase cost per unit.
-             */
-            lastCost?: number | null;
-            /**
-             * Format: date-time
-             * @description Timestamp of last stock movement.
-             */
-            lastMovementAt?: string | null;
-            /**
-             * Format: uuid
-             * @description Optional storage location ID.
-             */
-            locationId?: string | null;
+            /** @description Optional storage location identifier. */
+            location?: string | null;
             /**
              * Format: int32
              * @description Maximum stock level.
@@ -886,16 +698,10 @@ export interface components {
              * Format: int32
              * @description Minimum stock level threshold.
              */
-            minStockLevel?: number | null;
-            /**
-             * Format: uuid
-             * @description Organization ID.
-             */
+            minStockLevel: number;
+            /** @description Organization ID. */
             organizationId: string;
-            /**
-             * Format: uuid
-             * @description Product ID.
-             */
+            /** @description Product ID. */
             productId: string;
             /**
              * Format: int32
@@ -917,15 +723,9 @@ export interface components {
              * @description Reorder point.
              */
             reorderPoint?: number | null;
-            /**
-             * Format: int32
-             * @description Reorder quantity.
-             */
-            reorderQuantity?: number | null;
-            /**
-             * Format: date-time
-             * @description Record last-update timestamp.
-             */
+            /** @description Optional SKU override at inventory level. */
+            sku?: string | null;
+            /** @description Record last-update timestamp. */
             updatedAt: string;
         };
         /** @description Request body for updating a brand (all fields optional). */
@@ -947,10 +747,7 @@ export interface components {
             imageUrl?: string | null;
             /** @description Updated category name. */
             name?: string | null;
-            /**
-             * Format: uuid
-             * @description Updated parent category ID.
-             */
+            /** @description Updated parent category ID. */
             parentId?: string | null;
         };
         /** @description Request body for updating an order. */
@@ -1019,15 +816,9 @@ export interface components {
              * @description Updated base price.
              */
             basePrice?: number | null;
-            /**
-             * Format: uuid
-             * @description Updated brand ID.
-             */
+            /** @description Updated brand ID. */
             brandId?: string | null;
-            /**
-             * Format: uuid
-             * @description Updated category ID.
-             */
+            /** @description Updated category ID. */
             categoryId?: string | null;
             /**
              * Format: int64
@@ -1043,7 +834,7 @@ export interface components {
             /** @description Updated is_featured flag. */
             isFeatured?: boolean | null;
             /**
-             * Format: int32
+             * Format: int64
              * @description Updated minimum stock level.
              */
             minStockLevel?: number | null;
@@ -1052,7 +843,7 @@ export interface components {
             /** @description Updated SKU. */
             sku?: string | null;
             /** @description Updated tags. */
-            tags?: unknown;
+            tags?: string[] | null;
             /** @description Updated track_inventory flag. */
             trackInventory?: boolean | null;
             /**
@@ -1080,10 +871,7 @@ export interface components {
             isActive?: boolean | null;
             /** @description Updated plaintext password. */
             password?: string | null;
-            /**
-             * Format: uuid
-             * @description Updated role ID.
-             */
+            /** @description Updated role ID. */
             roleId?: string | null;
         };
         /** @description User profile embedded in the login response. */
@@ -1103,41 +891,23 @@ export interface components {
         };
         /** @description Full user response DTO (password hash is never serialized). */
         UserResponse: {
-            /**
-             * Format: date-time
-             * @description Record creation timestamp.
-             */
+            /** @description Record creation timestamp. */
             createdAt: string;
             /** @description Email address. */
             email: string;
             /** @description Full name. */
-            fullName: string;
-            /**
-             * Format: uuid
-             * @description User ID.
-             */
+            fullName?: string | null;
+            /** @description User ID. */
             id: string;
             /** @description Whether the user is active. */
             isActive: boolean;
-            /**
-             * Format: date-time
-             * @description Last login timestamp.
-             */
+            /** @description Last login timestamp. */
             lastLoginAt?: string | null;
-            /**
-             * Format: uuid
-             * @description Organization ID.
-             */
-            organizationId: string;
-            /**
-             * Format: uuid
-             * @description Role ID.
-             */
-            roleId: string;
-            /**
-             * Format: date-time
-             * @description Record last-update timestamp.
-             */
+            /** @description Organization ID. */
+            organizationId?: string | null;
+            /** @description Role ID. */
+            roleId?: string | null;
+            /** @description Record last-update timestamp. */
             updatedAt: string;
         };
         /** @description Variant count for list endpoints. */

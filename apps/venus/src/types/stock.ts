@@ -28,7 +28,6 @@ export type Stock = StripNull<Schemas["StockResponse"]> & {
 
 /** Stock movement history - generated from Loco API with frontend extensions. */
 export type StockHistory = StripNull<Schemas["StockHistoryResponse"]> & {
-  type: string
   createdByUser?: {
     id: string
     fullName: string

@@ -1,9 +1,7 @@
-import LandingPage from "@/pages/landing"
 import { lazy } from "react"
-import type { RouteObject } from "react-router"
+import { Navigate, type RouteObject } from "react-router"
 
 // Public
-const MainLayout = lazy(() => import("@/components/layouts/public/main-layout"))
 const LoginPage = lazy(() => import("@/pages/login"))
 const RegisterPage = lazy(() => import("@/pages/register"))
 const RegistrationSuccessPage = lazy(
@@ -34,14 +32,7 @@ const RoleManagement = lazy(() => import("@/pages/role-management"))
 const NotFound = lazy(() => import("@/pages/not-found"))
 
 export const PublicRoute: RouteObject[] = [
-  {
-    path: "/",
-    element: <MainLayout />,
-    children: [
-      { path: "/", element: <LandingPage /> },
-      { path: "*", element: <NotFound /> },
-    ],
-  },
+  { path: "/", element: <Navigate to="/login" replace /> },
   { path: "/login", element: <LoginPage /> },
   { path: "/register", element: <RegisterPage /> },
   { path: "/registration-success", element: <RegistrationSuccessPage /> },

@@ -57,6 +57,7 @@
           "id",
           "name",
           "slug",
+          "isActive",
           "organizationId",
           "createdAt",
           "updatedAt"
@@ -64,7 +65,6 @@
         "properties": {
           "createdAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record creation timestamp."
           },
           "createdBy": {
@@ -72,7 +72,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "User who created this brand."
           },
           "description": {
@@ -84,8 +83,11 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
             "description": "Brand ID."
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether the brand is active."
           },
           "logo": {
             "type": [
@@ -100,7 +102,6 @@
           },
           "organizationId": {
             "type": "string",
-            "format": "uuid",
             "description": "Owning organization ID."
           },
           "slug": {
@@ -109,7 +110,6 @@
           },
           "updatedAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record last-update timestamp."
           },
           "website": {
@@ -131,7 +131,6 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid",
             "description": "Brand ID."
           },
           "name": {
@@ -147,6 +146,8 @@
           "id",
           "name",
           "slug",
+          "sortOrder",
+          "isActive",
           "organizationId",
           "createdAt",
           "updatedAt"
@@ -154,7 +155,6 @@
         "properties": {
           "createdAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record creation timestamp."
           },
           "createdBy": {
@@ -162,7 +162,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "User who created this category."
           },
           "description": {
@@ -174,7 +173,6 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
             "description": "Category ID."
           },
           "imageUrl": {
@@ -184,13 +182,16 @@
             ],
             "description": "Optional image URL."
           },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether the category is active."
+          },
           "name": {
             "type": "string",
             "description": "Category name."
           },
           "organizationId": {
             "type": "string",
-            "format": "uuid",
             "description": "Owning organization ID."
           },
           "parentId": {
@@ -198,16 +199,19 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Optional parent category ID for hierarchy."
           },
           "slug": {
             "type": "string",
             "description": "URL-friendly slug."
           },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Display sort order."
+          },
           "updatedAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record last-update timestamp."
           }
         }
@@ -222,7 +226,6 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid",
             "description": "Category ID."
           },
           "name": {
@@ -295,7 +298,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Optional parent category ID."
           }
         }
@@ -317,7 +319,6 @@
           },
           "productId": {
             "type": "string",
-            "format": "uuid",
             "description": "Product ID."
           },
           "quantity": {
@@ -442,7 +443,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Optional parent organization ID."
           },
           "phone": {
@@ -522,7 +522,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Optional brand ID."
           },
           "categoryId": {
@@ -530,7 +529,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Optional category ID."
           },
           "costPrice": {
@@ -570,7 +568,7 @@
               "integer",
               "null"
             ],
-            "format": "int32",
+            "format": "int64",
             "description": "Optional minimum stock level."
           },
           "name": {
@@ -582,7 +580,14 @@
             "description": "Stock keeping unit (unique within organization)."
           },
           "tags": {
-            "description": "Optional tags as JSON."
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional tags for search and filtering."
           },
           "trackInventory": {
             "type": [
@@ -656,7 +661,6 @@
           },
           "roleId": {
             "type": "string",
-            "format": "uuid",
             "description": "Role ID to assign."
           }
         }
@@ -695,7 +699,7 @@
           "password": {
             "type": "string",
             "description": "Plaintext password.",
-            "example": "sakaloka-dev"
+            "example": "sakaloka-dev-01"
           }
         }
       },
@@ -743,7 +747,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Category ID."
           },
           "categoryName": {
@@ -755,7 +758,6 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
             "description": "Product ID."
           },
           "imageUrl": {
@@ -789,32 +791,41 @@
           "itemName",
           "quantity",
           "unitPrice",
+          "discountAmount",
           "totalPrice",
           "createdAt"
         ],
         "properties": {
           "createdAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record creation timestamp."
+          },
+          "discountAmount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Discount applied to this line item."
           },
           "id": {
             "type": "string",
-            "format": "uuid",
             "description": "Order item ID."
           },
           "itemName": {
             "type": "string",
             "description": "Item name snapshot."
           },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional item-level notes."
+          },
           "orderId": {
             "type": "string",
-            "format": "uuid",
             "description": "Parent order ID."
           },
           "productId": {
             "type": "string",
-            "format": "uuid",
             "description": "Product ID."
           },
           "quantity": {
@@ -855,7 +866,6 @@
         "properties": {
           "createdAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record creation timestamp."
           },
           "createdBy": {
@@ -863,7 +873,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "User who created this order."
           },
           "customerId": {
@@ -871,7 +880,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Optional customer user ID."
           },
           "customerName": {
@@ -888,7 +896,6 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
             "description": "Order ID."
           },
           "items": {
@@ -914,7 +921,6 @@
           },
           "organizationId": {
             "type": "string",
-            "format": "uuid",
             "description": "Organization ID."
           },
           "paidAmount": {
@@ -965,7 +971,6 @@
           },
           "updatedAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record last-update timestamp."
           },
           "updatedBy": {
@@ -973,7 +978,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "User who last updated this order."
           }
         }
@@ -1043,7 +1047,6 @@
           },
           "createdAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record creation timestamp."
           },
           "description": {
@@ -1062,7 +1065,6 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
             "description": "Organization ID."
           },
           "isActive": {
@@ -1085,7 +1087,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Optional owner user ID."
           },
           "parentId": {
@@ -1093,7 +1094,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Optional parent organization ID."
           },
           "phone": {
@@ -1140,7 +1140,6 @@
           },
           "updatedAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record last-update timestamp."
           },
           "website": {
@@ -1198,19 +1197,52 @@
           }
         }
       },
-      "PermissionsResponse": {
+      "PermissionActionResponse": {
         "type": "object",
-        "description": "Response listing all available permissions.",
+        "description": "UI-facing permission action metadata.",
         "required": [
+          "key",
+          "label"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Action key stored under a module."
+          },
+          "label": {
+            "type": "string",
+            "description": "Human-readable label."
+          }
+        }
+      },
+      "PermissionModuleResponse": {
+        "type": "object",
+        "description": "UI-facing business permission module metadata.",
+        "required": [
+          "key",
+          "label",
+          "description",
           "permissions"
         ],
         "properties": {
+          "description": {
+            "type": "string",
+            "description": "Short description for UI presentation."
+          },
+          "key": {
+            "type": "string",
+            "description": "Module key stored in `role.permissions`."
+          },
+          "label": {
+            "type": "string",
+            "description": "Human-readable label."
+          },
           "permissions": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/PermissionActionResponse"
             },
-            "description": "List of all known permission strings."
+            "description": "Allowed actions for the module."
           }
         }
       },
@@ -1261,7 +1293,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Brand ID."
           },
           "category": {
@@ -1280,7 +1311,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Category ID."
           },
           "costPrice": {
@@ -1293,7 +1323,6 @@
           },
           "createdAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record creation timestamp."
           },
           "description": {
@@ -1305,7 +1334,6 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
             "description": "Product ID."
           },
           "imageUrl": {
@@ -1325,7 +1353,6 @@
           },
           "organizationId": {
             "type": "string",
-            "format": "uuid",
             "description": "Owning organization ID."
           },
           "sku": {
@@ -1333,11 +1360,17 @@
             "description": "Stock keeping unit."
           },
           "tags": {
-            "description": "Tags as JSON."
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags for search and filtering."
           },
           "updatedAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record last-update timestamp."
           }
         }
@@ -1351,6 +1384,7 @@
           "sku",
           "basePrice",
           "trackInventory",
+          "minStockLevel",
           "isFeatured",
           "organizationId",
           "createdAt",
@@ -1385,7 +1419,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Brand ID."
           },
           "category": {
@@ -1404,7 +1437,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Category ID."
           },
           "costPrice": {
@@ -1417,7 +1449,6 @@
           },
           "createdAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record creation timestamp."
           },
           "deletedAt": {
@@ -1425,7 +1456,6 @@
               "string",
               "null"
             ],
-            "format": "date-time",
             "description": "Soft-delete timestamp."
           },
           "description": {
@@ -1440,7 +1470,6 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
             "description": "Product ID."
           },
           "imageUrl": {
@@ -1455,11 +1484,8 @@
             "description": "Whether the product is featured."
           },
           "minStockLevel": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
+            "type": "integer",
+            "format": "int64",
             "description": "Minimum stock level threshold."
           },
           "name": {
@@ -1468,7 +1494,6 @@
           },
           "organizationId": {
             "type": "string",
-            "format": "uuid",
             "description": "Owning organization ID."
           },
           "sku": {
@@ -1476,7 +1501,14 @@
             "description": "Stock keeping unit."
           },
           "tags": {
-            "description": "Tags as JSON."
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags for search and filtering."
           },
           "trackInventory": {
             "type": "boolean",
@@ -1484,7 +1516,6 @@
           },
           "updatedAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record last-update timestamp."
           },
           "weight": {
@@ -1550,7 +1581,6 @@
           "name",
           "organizationId",
           "isSystemRole",
-          "permissions",
           "isActive",
           "createdAt",
           "updatedAt"
@@ -1558,7 +1588,6 @@
         "properties": {
           "createdAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record creation timestamp."
           },
           "createdBy": {
@@ -1566,12 +1595,17 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "User who created this role."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional description."
           },
           "id": {
             "type": "string",
-            "format": "uuid",
             "description": "Role ID."
           },
           "isActive": {
@@ -1588,7 +1622,6 @@
           },
           "organizationId": {
             "type": "string",
-            "format": "uuid",
             "description": "Organization ID."
           },
           "permissions": {
@@ -1596,7 +1629,6 @@
           },
           "updatedAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record last-update timestamp."
           }
         }
@@ -1632,7 +1664,6 @@
         "properties": {
           "organizationId": {
             "type": "string",
-            "format": "uuid",
             "description": "ID of the organization to switch to."
           }
         }
@@ -1645,16 +1676,11 @@
           "inventoryItemId",
           "movementType",
           "quantity",
-          "reason",
-          "totalBefore",
-          "quantityChange",
-          "totalAfter",
           "createdAt"
         ],
         "properties": {
           "createdAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record creation timestamp."
           },
           "createdBy": {
@@ -1662,17 +1688,14 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "User who created the movement."
           },
           "id": {
             "type": "string",
-            "format": "uuid",
             "description": "Movement ID."
           },
           "inventoryItemId": {
             "type": "string",
-            "format": "uuid",
             "description": "Inventory item ID."
           },
           "movementType": {
@@ -1691,31 +1714,19 @@
             "format": "int32",
             "description": "Quantity moved."
           },
-          "quantityChange": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Signed quantity change."
-          },
-          "reason": {
-            "type": "string",
-            "description": "Reason for the movement."
-          },
-          "reference": {
+          "referenceId": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Optional reference (order number, PO, etc.)."
+            "description": "Optional reference document ID."
           },
-          "totalAfter": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Inventory after this movement."
-          },
-          "totalBefore": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Inventory before this movement."
+          "referenceType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional reference type (order, purchase_order)."
           }
         }
       },
@@ -1725,55 +1736,29 @@
         "required": [
           "id",
           "productId",
+          "organizationId",
           "quantityOnHand",
           "quantityReserved",
           "quantityAvailable",
-          "organizationId",
+          "minStockLevel",
           "createdAt",
           "updatedAt"
         ],
         "properties": {
-          "averageCost": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "Average cost per unit."
-          },
           "createdAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record creation timestamp."
           },
           "id": {
             "type": "string",
-            "format": "uuid",
             "description": "Inventory item ID."
           },
-          "lastCost": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "Last purchase cost per unit."
-          },
-          "lastMovementAt": {
+          "location": {
             "type": [
               "string",
               "null"
             ],
-            "format": "date-time",
-            "description": "Timestamp of last stock movement."
-          },
-          "locationId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid",
-            "description": "Optional storage location ID."
+            "description": "Optional storage location identifier."
           },
           "maxStockLevel": {
             "type": [
@@ -1784,21 +1769,16 @@
             "description": "Maximum stock level."
           },
           "minStockLevel": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": "integer",
             "format": "int32",
             "description": "Minimum stock level threshold."
           },
           "organizationId": {
             "type": "string",
-            "format": "uuid",
             "description": "Organization ID."
           },
           "productId": {
             "type": "string",
-            "format": "uuid",
             "description": "Product ID."
           },
           "quantityAvailable": {
@@ -1824,17 +1804,15 @@
             "format": "int32",
             "description": "Reorder point."
           },
-          "reorderQuantity": {
+          "sku": {
             "type": [
-              "integer",
+              "string",
               "null"
             ],
-            "format": "int32",
-            "description": "Reorder quantity."
+            "description": "Optional SKU override at inventory level."
           },
           "updatedAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record last-update timestamp."
           }
         }
@@ -1903,7 +1881,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Updated parent category ID."
           }
         }
@@ -2109,7 +2086,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Updated brand ID."
           },
           "categoryId": {
@@ -2117,7 +2093,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Updated category ID."
           },
           "costPrice": {
@@ -2157,7 +2132,7 @@
               "integer",
               "null"
             ],
-            "format": "int32",
+            "format": "int64",
             "description": "Updated minimum stock level."
           },
           "name": {
@@ -2175,6 +2150,13 @@
             "description": "Updated SKU."
           },
           "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
             "description": "Updated tags."
           },
           "trackInventory": {
@@ -2254,7 +2236,6 @@
               "string",
               "null"
             ],
-            "format": "uuid",
             "description": "Updated role ID."
           }
         }
@@ -2302,9 +2283,6 @@
         "required": [
           "id",
           "email",
-          "fullName",
-          "organizationId",
-          "roleId",
           "isActive",
           "createdAt",
           "updatedAt"
@@ -2312,7 +2290,6 @@
         "properties": {
           "createdAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record creation timestamp."
           },
           "email": {
@@ -2320,12 +2297,14 @@
             "description": "Email address."
           },
           "fullName": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Full name."
           },
           "id": {
             "type": "string",
-            "format": "uuid",
             "description": "User ID."
           },
           "isActive": {
@@ -2337,22 +2316,24 @@
               "string",
               "null"
             ],
-            "format": "date-time",
             "description": "Last login timestamp."
           },
           "organizationId": {
-            "type": "string",
-            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Organization ID."
           },
           "roleId": {
-            "type": "string",
-            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Role ID."
           },
           "updatedAt": {
             "type": "string",
-            "format": "date-time",
             "description": "Record last-update timestamp."
           }
         }

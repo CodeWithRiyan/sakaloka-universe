@@ -97,9 +97,9 @@ export default function StockManagement() {
         const stockHistory: StockData[] = stock.stockHistory
           .filter((_h, i) => i < 5)
           .map((history) => ({
-            name: history.type,
+            name: history.movementType,
             quantity: history.quantity,
-            reason: history.reason,
+            reason: history.notes || history.movementType,
             notes: history.notes,
             createdAt: history.createdAt,
             createdBy: history.createdBy,

@@ -49,7 +49,7 @@ pub struct UserClaims {
 /// let keys = JwtKeys::from_env().unwrap();
 /// let user_id = UserId::new("user:01JKXYZ").unwrap();
 /// let session = SessionId::new();
-/// let token = issue_user_token(&keys, &user_id, "editor", &["entity:read"], &session).unwrap();
+/// let token = issue_user_token(&keys, &user_id, "editor", &["product:read"], &session).unwrap();
 /// assert!(!token.is_empty());
 /// ```
 pub fn issue_user_token(
@@ -92,7 +92,7 @@ pub fn issue_user_token(
 /// let keys = JwtKeys::from_env().unwrap();
 /// let user_id = UserId::new("user:01JKXYZ").unwrap();
 /// let session = SessionId::new();
-/// let token = issue_user_token(&keys, &user_id, "editor", &["entity:read"], &session).unwrap();
+/// let token = issue_user_token(&keys, &user_id, "editor", &["product:read"], &session).unwrap();
 /// let claims = validate_user_token(&keys, &token).unwrap();
 /// assert_eq!(claims.role, "editor");
 /// ```

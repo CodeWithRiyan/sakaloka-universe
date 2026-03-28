@@ -55,12 +55,28 @@ pub struct UpdateRoleRequest {
     pub is_active: Option<bool>,
 }
 
-/// Response listing all available permissions.
+/// UI-facing permission action metadata.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct PermissionsResponse {
-    /// List of all known permission strings.
-    pub permissions: Vec<String>,
+pub struct PermissionActionResponse {
+    /// Action key stored under a module.
+    pub key: String,
+    /// Human-readable label.
+    pub label: String,
+}
+
+/// UI-facing business permission module metadata.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionModuleResponse {
+    /// Module key stored in `role.permissions`.
+    pub key: String,
+    /// Human-readable label.
+    pub label: String,
+    /// Short description for UI presentation.
+    pub description: String,
+    /// Allowed actions for the module.
+    pub permissions: Vec<PermissionActionResponse>,
 }
 
 impl RoleResponse {

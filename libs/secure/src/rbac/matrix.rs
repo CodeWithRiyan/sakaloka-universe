@@ -1,7 +1,8 @@
 //! Role-to-scope lookup matrix.
 //!
-//! This is the single source of truth for which scopes each role is granted.
-//! The matrix mirrors the RBAC table in the PRD Section 5.2.
+//! This matrix exists for non-user defaults and service-oriented role presets.
+//! User JWT scopes are issued from the `role.permissions` JSON stored in the
+//! database and should not be derived from this module.
 
 use crate::rbac::{Role, Scope};
 
@@ -13,30 +14,75 @@ use crate::rbac::{Role, Scope};
 /// use sakaloka_secure::rbac::{Role, Scope, matrix::allowed_scopes};
 ///
 /// let scopes = allowed_scopes(&Role::Viewer);
-/// assert!(scopes.contains(&Scope::EntityRead));
-/// assert!(!scopes.contains(&Scope::EntityWrite));
+/// assert!(scopes.contains(&Scope::ProductRead));
+/// assert!(!scopes.contains(&Scope::ProductDelete));
 /// ```
 pub fn allowed_scopes(role: &Role) -> Vec<Scope> {
     match role {
         Role::Admin => vec![
-            Scope::EntityRead,
-            Scope::EntityWrite,
-            Scope::EntityDelete,
-            Scope::SearchRead,
+            Scope::OrganizationRead,
+            Scope::OrganizationCreate,
+            Scope::OrganizationUpdate,
+            Scope::OrganizationDelete,
+            Scope::OrganizationSelect,
+            Scope::ProductRead,
+            Scope::ProductCreate,
+            Scope::ProductUpdate,
+            Scope::ProductDelete,
+            Scope::BrandRead,
+            Scope::BrandCreate,
+            Scope::BrandUpdate,
+            Scope::BrandDelete,
+            Scope::CategoryRead,
+            Scope::CategoryCreate,
+            Scope::CategoryUpdate,
+            Scope::CategoryDelete,
+            Scope::StockRead,
+            Scope::StockUpdate,
             Scope::UserRead,
-            Scope::UserManage,
+            Scope::UserCreate,
+            Scope::UserUpdate,
+            Scope::UserDelete,
+            Scope::RoleRead,
+            Scope::RoleCreate,
+            Scope::RoleUpdate,
+            Scope::RoleDelete,
+            Scope::PosRead,
+            Scope::PosCreate,
+            Scope::PosUpdate,
             Scope::DbRead,
             Scope::DbWrite,
             Scope::DbAdmin,
             Scope::ZenohPublish,
             Scope::ZenohSubscribe,
         ],
-        Role::Editor => vec![Scope::EntityRead, Scope::EntityWrite, Scope::SearchRead],
-        Role::Viewer => vec![Scope::EntityRead, Scope::SearchRead],
+        Role::Editor => vec![
+            Scope::OrganizationRead,
+            Scope::OrganizationSelect,
+            Scope::ProductRead,
+            Scope::ProductCreate,
+            Scope::ProductUpdate,
+            Scope::BrandRead,
+            Scope::BrandCreate,
+            Scope::BrandUpdate,
+            Scope::CategoryRead,
+            Scope::CategoryCreate,
+            Scope::CategoryUpdate,
+            Scope::StockRead,
+            Scope::StockUpdate,
+            Scope::PosRead,
+            Scope::PosCreate,
+            Scope::PosUpdate,
+        ],
+        Role::Viewer => vec![
+            Scope::OrganizationRead,
+            Scope::ProductRead,
+            Scope::BrandRead,
+            Scope::CategoryRead,
+            Scope::StockRead,
+            Scope::PosRead,
+        ],
         Role::Service => vec![
-            Scope::EntityRead,
-            Scope::EntityWrite,
-            Scope::SearchRead,
             Scope::DbRead,
             Scope::DbWrite,
             Scope::ZenohPublish,
