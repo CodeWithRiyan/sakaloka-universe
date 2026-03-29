@@ -1,43 +1,65 @@
-# Use Node.js 22 Alpine image (latest available)
-FROM node:22.12-alpine AS base
+# =============================================================
+# Sakaloka Venus (POS Web) — Multi-stage Docker Build
+#
+# Build: docker build --build-arg ENV=dev -t sakaloka-pos:dev .
+# Run:   docker run -p 3000:80 sakaloka-pos:dev
+# =============================================================
 
-# Install pnpm
-RUN npm install -g pnpm
+# --- Stage 1: Build ---
+FROM node:22-alpine AS build
 
-# Set working directory
+RUN corepack enable pnpm
+
 WORKDIR /app
 
-# Copy package files
 COPY package.json pnpm-lock.yaml ./
-
-# Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Copy source code
 COPY . .
 
-# Build the application
+ARG ENV=dev
+RUN cp .env.${ENV} .env 2>/dev/null || true
 RUN pnpm run build
 
-# Production stage
-FROM node:22.12-alpine AS production
+# --- Stage 2: Serve with nginx ---
+FROM nginx:alpine
 
-# Install pnpm
-RUN npm install -g pnpm
+# SPA fallback: all routes → index.html
+COPY --from=build /app/dist /usr/share/nginx/html
 
-WORKDIR /app
+RUN cat > /etc/nginx/conf.d/default.conf <<'EOF'
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript image/svg+xml;
 
-# Install only production dependencies
-RUN pnpm install --prod --frozen-lockfile
+    # Cache static assets (hashed filenames from Vite)
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
 
-# Copy built application
-COPY --from=base /app/dist ./dist
+    # SPA fallback — all routes to index.html
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
 
-# Expose port
-EXPOSE 3000
+    # Health check
+    location = /healthz {
+        access_log off;
+        return 200 "ok";
+        add_header Content-Type text/plain;
+    }
+}
+EOF
 
-# Start the application
-CMD ["pnpm", "preview", "--host", "0.0.0.0", "--port", "3000"]
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

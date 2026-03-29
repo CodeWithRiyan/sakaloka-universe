@@ -99,7 +99,7 @@ export default defineConfig({
   },
 
   preview: {
-    allowedHosts: ["cashier.sakaloka.id", "56.cashier.sakaloka.id"],
+    allowedHosts: ["pos.sakaloka.id", "dev-pos.sakaloka.id", "sit-pos.sakaloka.id", "demo-pos.sakaloka.id"],
     host: true,
     port: 3000,
   },
