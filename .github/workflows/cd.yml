@@ -44,7 +44,50 @@ jobs:
       is_release: ${{ steps.resolve.outputs.is_release }}
       is_draft: ${{ steps.resolve.outputs.is_draft }}
       version_tag: ${{ steps.resolve.outputs.version_tag }}
+      changed_api: ${{ steps.changes.outputs.api }}
+      changed_web: ${{ steps.changes.outputs.web }}
+      changed_desktop: ${{ steps.changes.outputs.desktop }}
+      changed_deploy: ${{ steps.changes.outputs.deploy }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed paths
+        id: changes
+        run: |
+          # For tags and workflow_dispatch, build everything
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]] || [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "api=true"     >> "$GITHUB_OUTPUT"
+            echo "web=true"     >> "$GITHUB_OUTPUT"
+            echo "desktop=true" >> "$GITHUB_OUTPUT"
+            echo "deploy=true"  >> "$GITHUB_OUTPUT"
+            echo "### Changes: **all** (tag or manual dispatch)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          echo "$CHANGED"
+
+          API=false; WEB=false; DESKTOP=false; DEPLOY=false
+
+          echo "$CHANGED" | grep -qE '^(apps/api/|libs/|Cargo)' && API=true
+          echo "$CHANGED" | grep -qE '^apps/venus/'             && WEB=true
+          echo "$CHANGED" | grep -qE '^apps/venus/src-tauri/'   && DESKTOP=true
+          echo "$CHANGED" | grep -qE '^deploy/'                 && DEPLOY=true
+
+          # If deploy files changed, rebuild everything to pick up infra changes
+          if [[ "$DEPLOY" == "true" ]]; then
+            API=true; WEB=true
+          fi
+
+          echo "api=$API"       >> "$GITHUB_OUTPUT"
+          echo "web=$WEB"       >> "$GITHUB_OUTPUT"
+          echo "desktop=$DESKTOP" >> "$GITHUB_OUTPUT"
+          echo "deploy=$DEPLOY" >> "$GITHUB_OUTPUT"
+          echo "### Changes: api=$API web=$WEB desktop=$DESKTOP deploy=$DEPLOY" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Determine environment from trigger
         id: resolve
         run: |
@@ -87,6 +130,7 @@ jobs:
   build-desktop:
     name: "Desktop (${{ matrix.platform.name }}) — ${{ needs.resolve-env.outputs.env_name }}"
     needs: resolve-env
+    if: needs.resolve-env.outputs.changed_desktop == 'true' || needs.resolve-env.outputs.changed_web == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -179,6 +223,7 @@ jobs:
   build-android:
     name: "Android — ${{ needs.resolve-env.outputs.env_name }}"
     needs: resolve-env
+    if: needs.resolve-env.outputs.changed_desktop == 'true' || needs.resolve-env.outputs.changed_web == 'true'
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.env_name }}
 
@@ -306,6 +351,7 @@ jobs:
   build-web:
     name: "POS Web Docker — ${{ needs.resolve-env.outputs.env_name }}"
     needs: resolve-env
+    if: needs.resolve-env.outputs.changed_web == 'true'
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.env_name }}
 
@@ -352,6 +398,7 @@ jobs:
   build-api:
     name: "API Docker — ${{ needs.resolve-env.outputs.env_name }}"
     needs: resolve-env
+    if: needs.resolve-env.outputs.changed_api == 'true'
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.env_name }}
     outputs:
@@ -398,6 +445,7 @@ jobs:
   deploy-api:
     name: "Deploy API — ${{ needs.resolve-env.outputs.env_name }}"
     needs: [resolve-env, build-api]
+    if: needs.resolve-env.outputs.changed_api == 'true'
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.env_name }}
     concurrency:
@@ -516,6 +564,7 @@ jobs:
   deploy-web:
     name: "Deploy POS Web — ${{ needs.resolve-env.outputs.env_name }}"
     needs: [resolve-env, build-web]
+    if: needs.resolve-env.outputs.changed_web == 'true'
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.env_name }}
     concurrency:
