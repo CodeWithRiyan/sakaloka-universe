@@ -26,23 +26,17 @@ pub async fn list(
     let limit = params.limit();
     let start = (page - 1) * limit;
 
-    let total = state
-        .db
-        .count_roles(params.search.as_deref())
-        .await
-        .map_err(|e| db_err(e, "Failed to count roles"))?;
-
-    let items = state
-        .db
-        .list_roles(
-            limit,
-            start,
-            params.search.as_deref(),
-            params.sort_by.as_deref().unwrap_or("created_at"),
-            params.is_desc(),
-        )
-        .await
-        .map_err(|e| db_err(e, "Failed to list roles"))?;
+    let search = params.search.as_deref();
+    let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
+    let sort_desc = params.is_desc();
+    let (count_result, list_result) = tokio::join!(
+        state.db.count_roles(search),
+        state
+            .db
+            .list_roles(limit, start, search, sort_by, sort_desc),
+    );
+    let total = count_result.map_err(|e| db_err(e, "Failed to count roles"))?;
+    let items = list_result.map_err(|e| db_err(e, "Failed to list roles"))?;
 
     let responses: Vec<RoleResponse> = items.iter().map(RoleResponse::from_model).collect();
 
@@ -111,7 +105,7 @@ pub async fn create(
         ])));
     }
 
-    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims.sub).await?;
+    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims).await?;
 
     // Check for duplicate name within the organization
     let existing = state

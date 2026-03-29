@@ -30,17 +30,16 @@ pub async fn list(
     let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
     let sort_desc = params.is_desc();
 
-    let total = state
-        .db
-        .count_products(params.search.as_deref())
-        .await
-        .map_err(|e| db_err(e, "Failed to count products"))?;
-
-    let items = state
-        .db
-        .list_products(limit, start, params.search.as_deref(), sort_by, sort_desc)
-        .await
-        .map_err(|e| db_err(e, "Failed to list products"))?;
+    // Parallelize count + list queries
+    let search = params.search.as_deref();
+    let (count_result, list_result) = tokio::join!(
+        state.db.count_products(search),
+        state
+            .db
+            .list_products(limit, start, search, sort_by, sort_desc),
+    );
+    let total = count_result.map_err(|e| db_err(e, "Failed to count products"))?;
+    let items = list_result.map_err(|e| db_err(e, "Failed to list products"))?;
 
     // Batch-fetch related categories and brands (avoids N+1 queries)
     let cat_ids: Vec<String> = items
@@ -56,19 +55,19 @@ pub async fn list(
         .into_iter()
         .collect();
 
-    let cat_map: std::collections::HashMap<String, String> = state
-        .db
-        .find_categories_by_ids(&cat_ids)
-        .await
+    // Parallelize category + brand batch lookups
+    let (cat_result, brand_result) = tokio::join!(
+        state.db.find_categories_by_ids(&cat_ids),
+        state.db.find_brands_by_ids(&brand_ids),
+    );
+
+    let cat_map: std::collections::HashMap<String, String> = cat_result
         .unwrap_or_default()
         .into_iter()
         .map(|c| (record_id_to_string(&c.id), c.name))
         .collect();
 
-    let brand_map: std::collections::HashMap<String, String> = state
-        .db
-        .find_brands_by_ids(&brand_ids)
-        .await
+    let brand_map: std::collections::HashMap<String, String> = brand_result
         .unwrap_or_default()
         .into_iter()
         .map(|b| (record_id_to_string(&b.id), b.name))
@@ -122,38 +121,45 @@ pub async fn show(
         None => return Ok(Json(ApiResponse::not_found("Product"))),
     };
 
-    let cat = if let Some(ref cat_id) = product.category_id {
-        let cat_key = record_id_to_string(cat_id);
-        match state.db.find_category(&cat_key).await {
-            Ok(Some(c)) => Some(CategorySummary {
-                id: record_id_to_string(&c.id),
-                name: c.name,
-            }),
-            Ok(None) => None,
-            Err(e) => {
-                tracing::warn!(error = %e, category_id = %cat_key, "Failed to load category for product");
-                None
-            }
-        }
-    } else {
-        None
-    };
+    let cat_key = product.category_id.as_ref().map(record_id_to_string);
+    let brand_key = product.brand_id.as_ref().map(record_id_to_string);
 
-    let brand = if let Some(ref brand_id) = product.brand_id {
-        let brand_key = record_id_to_string(brand_id);
-        match state.db.find_brand(&brand_key).await {
-            Ok(Some(b)) => Some(BrandSummary {
-                id: record_id_to_string(&b.id),
-                name: b.name,
-            }),
-            Ok(None) => None,
-            Err(e) => {
-                tracing::warn!(error = %e, brand_id = %brand_key, "Failed to load brand for product");
-                None
+    let (cat_result, brand_result) = tokio::join!(
+        async {
+            match cat_key.as_deref() {
+                Some(k) => state.db.find_category(k).await,
+                None => Ok(None),
             }
+        },
+        async {
+            match brand_key.as_deref() {
+                Some(k) => state.db.find_brand(k).await,
+                None => Ok(None),
+            }
+        },
+    );
+
+    let cat = match cat_result {
+        Ok(Some(c)) => Some(CategorySummary {
+            id: record_id_to_string(&c.id),
+            name: c.name,
+        }),
+        Ok(None) => None,
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to load category for product");
+            None
         }
-    } else {
-        None
+    };
+    let brand = match brand_result {
+        Ok(Some(b)) => Some(BrandSummary {
+            id: record_id_to_string(&b.id),
+            name: b.name,
+        }),
+        Ok(None) => None,
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to load brand for product");
+            None
+        }
     };
 
     let response = ProductResponse::from_model(&product, cat, brand);
@@ -178,7 +184,7 @@ pub async fn create(
         ])));
     }
 
-    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims.sub).await?;
+    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims).await?;
 
     let result = state
         .db

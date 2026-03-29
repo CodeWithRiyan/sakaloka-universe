@@ -24,7 +24,15 @@ fn test_user_jwt_issue_and_validate() {
     let role = "viewer";
     let scopes = vec!["product:read"];
 
-    let token = issue_user_token(&keys, &user_id, role, &scopes, &session_id).unwrap();
+    let token = issue_user_token(
+        &keys,
+        &user_id,
+        role,
+        &scopes,
+        &session_id,
+        Some("organization:test"),
+    )
+    .unwrap();
     let claims = validate_user_token(&keys, &token).unwrap();
 
     assert_eq!(claims.sub, user_id.as_str());

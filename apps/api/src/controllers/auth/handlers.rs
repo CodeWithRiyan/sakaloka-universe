@@ -97,17 +97,14 @@ pub async fn login(
         }
     };
 
-    let org = state
-        .db
-        .find_organization(&org_id)
-        .await
+    let (org_result, role_result) = tokio::join!(
+        state.db.find_organization(&org_id),
+        state.db.find_role(&role_id),
+    );
+    let org = org_result
         .map_err(|e| db_err(e, "Failed to load organization"))?
         .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Organization not found")))?;
-
-    let role = state
-        .db
-        .find_role(&role_id)
-        .await
+    let role = role_result
         .map_err(|e| db_err(e, "Failed to load role"))?
         .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Role not found")))?;
 
@@ -122,8 +119,14 @@ pub async fn login(
             )))
         }
     };
-    let (access_token, refresh_token) =
-        issue_tokens_and_session(&state, &user_id_str, &role.name, &role_permissions).await?;
+    let (access_token, refresh_token) = issue_tokens_and_session(
+        &state,
+        &user_id_str,
+        &role.name,
+        &role_permissions,
+        Some(&org_id),
+    )
+    .await?;
 
     // 5. Update last_login_at (best-effort)
     if let Err(e) = state.db.update_last_login(&user_id_str).await {
@@ -185,8 +188,14 @@ pub async fn register(
             "Created admin role is missing persisted permissions"
         ))
     })?;
-    let (access_token, refresh_token) =
-        issue_tokens_and_session(&state, &user_id_str, &role.name, &role_permissions).await?;
+    let (access_token, refresh_token) = issue_tokens_and_session(
+        &state,
+        &user_id_str,
+        &role.name,
+        &role_permissions,
+        Some(&org_id_str),
+    )
+    .await?;
 
     let response = LoginResponse {
         access_token,
@@ -331,17 +340,14 @@ pub async fn profile(
         .map(record_id_to_string)
         .ok_or_else(|| ApiError::BadRequest("User has no role assigned".to_string()))?;
 
-    let org = state
-        .db
-        .find_organization(&org_id)
-        .await
+    let (org_result, role_result) = tokio::join!(
+        state.db.find_organization(&org_id),
+        state.db.find_role(&role_id),
+    );
+    let org = org_result
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to load org")))?
         .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Organization not found")))?;
-
-    let role = state
-        .db
-        .find_role(&role_id)
-        .await
+    let role = role_result
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to load role")))?
         .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Role not found")))?;
 

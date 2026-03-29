@@ -30,6 +30,7 @@ let token = issue_user_token(
     "admin",       // role name
     &["entity:read", "entity:write"],  // scopes
     &session_id,   // SessionId newtype
+    Some("organization:01JKXYZ"),  // org_id
 )?;
 ```
 

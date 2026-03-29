@@ -24,22 +24,14 @@ pub async fn list(
     let limit = params.limit();
     let start = (page - 1) * limit;
 
-    let total = state
-        .db
-        .count_inventory()
-        .await
-        .map_err(|e| db_err(e, "Failed to count inventory items"))?;
-
-    let items = state
-        .db
-        .list_inventory(
-            limit,
-            start,
-            params.sort_by.as_deref().unwrap_or("created_at"),
-            params.is_desc(),
-        )
-        .await
-        .map_err(|e| db_err(e, "Failed to list inventory items"))?;
+    let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
+    let sort_desc = params.is_desc();
+    let (count_result, list_result) = tokio::join!(
+        state.db.count_inventory(),
+        state.db.list_inventory(limit, start, sort_by, sort_desc),
+    );
+    let total = count_result.map_err(|e| db_err(e, "Failed to count inventory items"))?;
+    let items = list_result.map_err(|e| db_err(e, "Failed to list inventory items"))?;
 
     let responses: Vec<StockResponse> = items.iter().map(StockResponse::from_model).collect();
 
@@ -65,17 +57,12 @@ pub async fn low_stock(
     let limit = params.limit();
     let start = (page - 1) * limit;
 
-    let total = state
-        .db
-        .count_low_stock()
-        .await
-        .map_err(|e| db_err(e, "Failed to count low stock items"))?;
-
-    let items = state
-        .db
-        .list_low_stock(limit, start)
-        .await
-        .map_err(|e| db_err(e, "Failed to query low stock items"))?;
+    let (count_result, list_result) = tokio::join!(
+        state.db.count_low_stock(),
+        state.db.list_low_stock(limit, start),
+    );
+    let total = count_result.map_err(|e| db_err(e, "Failed to count low stock items"))?;
+    let items = list_result.map_err(|e| db_err(e, "Failed to query low stock items"))?;
 
     let responses: Vec<StockResponse> = items.iter().map(StockResponse::from_model).collect();
 
@@ -138,16 +125,13 @@ pub async fn history(
     let limit = params.limit();
     let start = (page - 1) * limit;
 
-    let total = state
-        .db
-        .count_stock_movements(&id)
-        .await
+    let (count_result, list_result) = tokio::join!(
+        state.db.count_stock_movements(&id),
+        state.db.list_stock_movements(&id, limit, start),
+    );
+    let total = count_result
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to count stock movements")))?;
-
-    let movements = state
-        .db
-        .list_stock_movements(&id, limit, start)
-        .await
+    let movements = list_result
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to list stock movements")))?;
 
     let responses: Vec<StockHistoryResponse> = movements
@@ -192,7 +176,7 @@ pub async fn adjust(
         return Ok(Json(ApiResponse::validation(errors)));
     }
 
-    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims.sub).await?;
+    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims).await?;
 
     let inventory_item = state
         .db

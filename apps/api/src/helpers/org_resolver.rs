@@ -4,21 +4,27 @@ use crate::app::AppState;
 use crate::error::ApiError;
 use crate::views::record_id_to_string;
 
-/// Look up the authenticated user and return their `organization_id` as a
-/// string.
-///
-/// This pattern is repeated in almost every write handler — centralising it
-/// here removes ~10 lines of boilerplate per call site.
+/// Return the caller's organization ID, preferring the JWT claim and falling
+/// back to a DB lookup for tokens issued before `org_id` was embedded.
 ///
 /// # Errors
 ///
 /// * `ApiError::Internal` — if the database lookup fails or the user cannot be
 ///   found.
 /// * `ApiError::BadRequest` — if the user has no organization assigned.
-pub async fn resolve_caller_org(state: &AppState, user_id: &str) -> Result<String, ApiError> {
+pub async fn resolve_caller_org(
+    state: &AppState,
+    claims: &sakaloka_secure::jwt::user_claims::UserClaims,
+) -> Result<String, ApiError> {
+    // Fast path: org_id is already in the JWT (v2+ tokens).
+    if let Some(ref org_id) = claims.org_id {
+        return Ok(org_id.clone());
+    }
+
+    // Slow path: fall back to DB for legacy tokens without org_id.
     let caller = state
         .db
-        .find_user_by_id(user_id)
+        .find_user_by_id(&claims.sub)
         .await
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to find caller")))?
         .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("Caller not found")))?;

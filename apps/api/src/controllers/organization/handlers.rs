@@ -25,23 +25,18 @@ pub async fn list(
     let limit = params.limit();
     let start = (page - 1) * limit;
 
-    let total = state
-        .db
-        .count_organizations(params.search.as_deref())
-        .await
-        .map_err(|e| db_err(e, "Failed to count organizations"))?;
+    let search = params.search.as_deref();
+    let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
+    let sort_desc = params.is_desc();
 
-    let items = state
-        .db
-        .list_organizations(
-            limit,
-            start,
-            params.search.as_deref(),
-            params.sort_by.as_deref().unwrap_or("created_at"),
-            params.is_desc(),
-        )
-        .await
-        .map_err(|e| db_err(e, "Failed to list organizations"))?;
+    let (count_result, list_result) = tokio::join!(
+        state.db.count_organizations(search),
+        state
+            .db
+            .list_organizations(limit, start, search, sort_by, sort_desc),
+    );
+    let total = count_result.map_err(|e| db_err(e, "Failed to count organizations"))?;
+    let items = list_result.map_err(|e| db_err(e, "Failed to list organizations"))?;
 
     let responses: Vec<OrganizationResponse> =
         items.iter().map(OrganizationResponse::from_model).collect();
@@ -62,7 +57,7 @@ pub async fn current(
     State(state): State<AppState>,
     Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
 ) -> Result<Json<ApiResponse<OrganizationResponse>>, ApiError> {
-    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims.sub).await?;
+    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims).await?;
 
     let org = state
         .db

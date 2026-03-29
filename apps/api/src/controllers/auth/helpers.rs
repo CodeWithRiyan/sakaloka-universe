@@ -25,6 +25,7 @@ pub async fn issue_tokens_and_session(
     user_id: &str,
     role_name: &str,
     db_permissions: &serde_json::Value,
+    org_id: Option<&str>,
 ) -> Result<(String, String), ApiError> {
     let uid = sakaloka_secure::newtypes::UserId::new(user_id)
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Invalid user ID")))?;
@@ -44,6 +45,7 @@ pub async fn issue_tokens_and_session(
         role_name,
         &scope_refs,
         &session_id,
+        org_id,
     )
     .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to issue JWT")))?;
 

@@ -23,23 +23,17 @@ pub async fn list(
     let limit = params.limit();
     let start = (page - 1) * limit;
 
-    let total = state
-        .db
-        .count_brands(params.search.as_deref())
-        .await
-        .map_err(|e| db_err(e, "Failed to count brands"))?;
-
-    let items = state
-        .db
-        .list_brands(
-            limit,
-            start,
-            params.search.as_deref(),
-            params.sort_by.as_deref().unwrap_or("created_at"),
-            params.is_desc(),
-        )
-        .await
-        .map_err(|e| db_err(e, "Failed to list brands"))?;
+    let search = params.search.as_deref();
+    let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
+    let sort_desc = params.is_desc();
+    let (count_result, list_result) = tokio::join!(
+        state.db.count_brands(search),
+        state
+            .db
+            .list_brands(limit, start, search, sort_by, sort_desc),
+    );
+    let total = count_result.map_err(|e| db_err(e, "Failed to count brands"))?;
+    let items = list_result.map_err(|e| db_err(e, "Failed to list brands"))?;
 
     let responses: Vec<BrandResponse> = items.iter().map(BrandResponse::from_model).collect();
 
@@ -87,7 +81,7 @@ pub async fn create(
     }
 
     let slug = slugify(&payload.name);
-    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims.sub).await?;
+    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims).await?;
 
     let result = state
         .db

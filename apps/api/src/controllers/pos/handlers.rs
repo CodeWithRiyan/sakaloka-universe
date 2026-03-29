@@ -26,17 +26,13 @@ pub async fn menu(
     let limit = params.limit();
     let start = (page - 1) * limit;
 
-    let total = state
-        .db
-        .count_products(params.search.as_deref())
-        .await
-        .map_err(|e| db_err(e, "Failed to count menu items"))?;
-
-    let items = state
-        .db
-        .list_products(limit, start, params.search.as_deref(), "name", false)
-        .await
-        .map_err(|e| db_err(e, "Failed to list menu items"))?;
+    let search = params.search.as_deref();
+    let (count_result, list_result) = tokio::join!(
+        state.db.count_products(search),
+        state.db.list_products(limit, start, search, "name", false),
+    );
+    let total = count_result.map_err(|e| db_err(e, "Failed to count menu items"))?;
+    let items = list_result.map_err(|e| db_err(e, "Failed to list menu items"))?;
 
     // Batch-fetch categories (avoids N+1 queries)
     let cat_ids: Vec<String> = items
@@ -94,25 +90,17 @@ pub async fn list_orders(
     let limit = params.limit();
     let start = (page - 1) * limit;
 
-    let total = state
-        .db
-        .count_orders(params.search.as_deref(), None, None)
-        .await
-        .map_err(|e| db_err(e, "Failed to count orders"))?;
-
-    let items = state
-        .db
-        .list_orders(
-            limit,
-            start,
-            params.search.as_deref(),
-            params.sort_by.as_deref().unwrap_or("created_at"),
-            params.is_desc(),
-            None,
-            None,
-        )
-        .await
-        .map_err(|e| db_err(e, "Failed to list orders"))?;
+    let search = params.search.as_deref();
+    let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
+    let sort_desc = params.is_desc();
+    let (count_result, list_result) = tokio::join!(
+        state.db.count_orders(search, None, None),
+        state
+            .db
+            .list_orders(limit, start, search, sort_by, sort_desc, None, None),
+    );
+    let total = count_result.map_err(|e| db_err(e, "Failed to count orders"))?;
+    let items = list_result.map_err(|e| db_err(e, "Failed to list orders"))?;
 
     let responses: Vec<OrderResponse> = items.iter().map(OrderResponse::from_model).collect();
 
@@ -140,15 +128,9 @@ pub async fn active_orders(
 
     let exclude_statuses: &[&str] = &["completed", "cancelled"];
 
-    let total = state
-        .db
-        .count_orders(None, None, Some(exclude_statuses))
-        .await
-        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to count active orders")))?;
-
-    let items = state
-        .db
-        .list_orders(
+    let (count_result, list_result) = tokio::join!(
+        state.db.count_orders(None, None, Some(exclude_statuses)),
+        state.db.list_orders(
             limit,
             start,
             None,
@@ -156,8 +138,11 @@ pub async fn active_orders(
             true,
             None,
             Some(exclude_statuses),
-        )
-        .await
+        ),
+    );
+    let total = count_result
+        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to count active orders")))?;
+    let items = list_result
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to list active orders")))?;
 
     let responses: Vec<OrderResponse> = items.iter().map(OrderResponse::from_model).collect();
@@ -185,15 +170,9 @@ pub async fn order_history(
 
     let filter_statuses: &[&str] = &["completed", "cancelled"];
 
-    let total = state
-        .db
-        .count_orders(None, Some(filter_statuses), None)
-        .await
-        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to count history orders")))?;
-
-    let items = state
-        .db
-        .list_orders(
+    let (count_result, list_result) = tokio::join!(
+        state.db.count_orders(None, Some(filter_statuses), None),
+        state.db.list_orders(
             limit,
             start,
             None,
@@ -201,8 +180,11 @@ pub async fn order_history(
             true,
             Some(filter_statuses),
             None,
-        )
-        .await
+        ),
+    );
+    let total = count_result
+        .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to count history orders")))?;
+    let items = list_result
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to list history orders")))?;
 
     let responses: Vec<OrderResponse> = items.iter().map(OrderResponse::from_model).collect();
@@ -256,7 +238,7 @@ pub async fn create_order(
         ])));
     }
 
-    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims.sub).await?;
+    let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims).await?;
     let order_number = generate_order_number();
 
     // Batch-fetch all products in one query (avoids N+1)

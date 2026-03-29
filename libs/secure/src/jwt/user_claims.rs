@@ -31,6 +31,12 @@ pub struct UserClaims {
     pub scopes: Vec<String>,
     /// The associated session ID.
     pub session_id: String,
+    /// The user's organization ID (e.g. `organization:01Jxxx`).
+    ///
+    /// Added in v2 — absent in tokens issued before this field existed.
+    /// Handlers that need it should fall back to a DB lookup when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub org_id: Option<String>,
 }
 
 /// Issues a new User JWT signed with the workspace HS256 secret.
@@ -49,7 +55,7 @@ pub struct UserClaims {
 /// let keys = JwtKeys::from_env().unwrap();
 /// let user_id = UserId::new("user:01JKXYZ").unwrap();
 /// let session = SessionId::new();
-/// let token = issue_user_token(&keys, &user_id, "editor", &["product:read"], &session).unwrap();
+/// let token = issue_user_token(&keys, &user_id, "editor", &["product:read"], &session, Some("organization:01JKXYZ")).unwrap();
 /// assert!(!token.is_empty());
 /// ```
 pub fn issue_user_token(
@@ -58,6 +64,7 @@ pub fn issue_user_token(
     role: &str,
     scopes: &[&str],
     session_id: &SessionId,
+    org_id: Option<&str>,
 ) -> Result<String, SecureError> {
     let now = current_unix_secs();
     let claims = UserClaims {
@@ -70,6 +77,7 @@ pub fn issue_user_token(
         role: role.to_string(),
         scopes: scopes.iter().map(|s| s.to_string()).collect(),
         session_id: session_id.to_string(),
+        org_id: org_id.map(String::from),
     };
     jsonwebtoken::encode(&Header::new(Algorithm::HS256), &claims, keys.encoding())
         .map_err(|e| SecureError::JwtEncode(e.to_string()))
@@ -92,7 +100,7 @@ pub fn issue_user_token(
 /// let keys = JwtKeys::from_env().unwrap();
 /// let user_id = UserId::new("user:01JKXYZ").unwrap();
 /// let session = SessionId::new();
-/// let token = issue_user_token(&keys, &user_id, "editor", &["product:read"], &session).unwrap();
+/// let token = issue_user_token(&keys, &user_id, "editor", &["product:read"], &session, Some("organization:test")).unwrap();
 /// let claims = validate_user_token(&keys, &token).unwrap();
 /// assert_eq!(claims.role, "editor");
 /// ```

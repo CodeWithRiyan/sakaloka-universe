@@ -147,6 +147,7 @@ mod tests {
             role: "tester".to_string(),
             scopes: scopes.iter().map(|scope| (*scope).to_string()).collect(),
             session_id: "session:test".to_string(),
+            org_id: Some("organization:test".to_string()),
         }
     }
 
