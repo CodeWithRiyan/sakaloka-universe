@@ -10,48 +10,7 @@ function manualChunks(id: string): string | undefined {
     return undefined
   }
 
-  if (
-    id.includes("/react/") ||
-    id.includes("/react-dom/") ||
-    id.includes("/scheduler/")
-  ) {
-    return "vendor-react"
-  }
-
-  if (
-    id.includes("/react-router/") ||
-    id.includes("/@reduxjs/") ||
-    id.includes("/react-redux/") ||
-    id.includes("/redux/")
-  ) {
-    return "vendor-router-state"
-  }
-
-  if (
-    id.includes("/@radix-ui/") ||
-    id.includes("/class-variance-authority/") ||
-    id.includes("/clsx/") ||
-    id.includes("/tailwind-merge/") ||
-    id.includes("/sonner/") ||
-    id.includes("/react-helmet") ||
-    id.includes("/react-helmet-async/")
-  ) {
-    return "vendor-ui"
-  }
-
-  if (id.includes("/recharts/") || id.includes("/@tanstack/")) {
-    return "vendor-data-viz"
-  }
-
-  if (
-    id.includes("/swiper/") ||
-    id.includes("/embla-carousel") ||
-    id.includes("/motion/") ||
-    id.includes("/canvas-confetti/")
-  ) {
-    return "vendor-motion"
-  }
-
+  // Only split chunks that have zero React dependencies
   if (id.includes("/react-icons/")) {
     return "vendor-react-icons"
   }
@@ -61,9 +20,7 @@ function manualChunks(id: string): string | undefined {
     id.includes("/query-string/") ||
     id.includes("/dayjs/") ||
     id.includes("/lodash/") ||
-    id.includes("/zod/") ||
-    id.includes("/react-hook-form/") ||
-    id.includes("/@hookform/")
+    id.includes("/zod/")
   ) {
     return "vendor-utils"
   }
