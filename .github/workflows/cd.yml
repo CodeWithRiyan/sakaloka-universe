@@ -431,7 +431,7 @@ jobs:
           script: |
             set -euo pipefail
             ENV="${{ needs.resolve-env.outputs.env_name }}"
-            DEPLOY_DIR="/opt/sakaloka/${ENV}"
+            DEPLOY_DIR="/srv/apps/sakaloka/${ENV}"
             mkdir -p "${DEPLOY_DIR}/config"
 
       - name: Copy deploy files to VPS
@@ -441,7 +441,7 @@ jobs:
           username: ${{ secrets.VPS_SSH_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           source: "deploy/docker-compose.base.yml,deploy/docker-compose.${{ needs.resolve-env.outputs.env_name }}.yml,deploy/config/,deploy/deploy.sh"
-          target: "/opt/sakaloka/${{ needs.resolve-env.outputs.env_name }}"
+          target: "/srv/apps/sakaloka/${{ needs.resolve-env.outputs.env_name }}"
           strip_components: 1
 
       - name: Pull and restart services
@@ -463,7 +463,7 @@ jobs:
           envs: GHCR_TOKEN,GHCR_USER,SAKALOKA_ENV,SAKALOKA_JWT_SECRET,SURREALDB_USER,SURREALDB_PASS,QDRANT_MASTER_KEY,ZENOH_USER,ZENOH_PASS
           script: |
             set -euo pipefail
-            DEPLOY_DIR="/opt/sakaloka/${SAKALOKA_ENV}"
+            DEPLOY_DIR="/srv/apps/sakaloka/${SAKALOKA_ENV}"
             cd "${DEPLOY_DIR}"
 
             # Generate .env if not present (first deploy)

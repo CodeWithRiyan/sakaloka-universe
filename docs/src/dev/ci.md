@@ -93,7 +93,7 @@ Create these for each GitHub Environment (`dev`, `sit`, `demo`, `prod`):
 ### VPS Deployment Layout
 
 ```
-/opt/sakaloka/{env}/
+/srv/apps/sakaloka/{env}/
   .env                         # Auto-generated on first deploy from secrets
   deploy.sh                    # Deploy helper script
   docker-compose.base.yml      # Shared service definitions

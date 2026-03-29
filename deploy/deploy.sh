@@ -28,9 +28,9 @@ case "$ENV" in
   dev|sit|demo|prod)
     COMPOSE="$BASE -f docker-compose.${ENV}.yml"
     ENV_FILE=".env"
-    # On the server, use /opt/sakaloka/<env>/.env if it exists
-    if [ -f "/opt/sakaloka/${ENV}/.env" ]; then
-      ENV_FILE="/opt/sakaloka/${ENV}/.env"
+    # On the server, use /srv/apps/sakaloka/<env>/.env if it exists
+    if [ -f "/srv/apps/sakaloka/${ENV}/.env" ]; then
+      ENV_FILE="/srv/apps/sakaloka/${ENV}/.env"
     fi
     ;;
   *)
