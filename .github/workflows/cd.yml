@@ -432,8 +432,7 @@ jobs:
             set -euo pipefail
             ENV="${{ needs.resolve-env.outputs.env_name }}"
             DEPLOY_DIR="/opt/sakaloka/${ENV}"
-            sudo mkdir -p "${DEPLOY_DIR}/config"
-            sudo chown -R $(whoami):$(whoami) "${DEPLOY_DIR}"
+            mkdir -p "${DEPLOY_DIR}/config"
 
       - name: Copy deploy files to VPS
         uses: appleboy/scp-action@v0.1.7
