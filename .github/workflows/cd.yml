@@ -445,32 +445,6 @@ jobs:
           target: "/opt/sakaloka/${{ needs.resolve-env.outputs.env_name }}"
           strip_components: 1
 
-      - name: Update Nginx reverse proxy config
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_SSH_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -euo pipefail
-            ENV="${{ needs.resolve-env.outputs.env_name }}"
-            SRC="/opt/sakaloka/${ENV}/config/nginx-sakaloka.conf"
-            DST="/srv/apps/infra/config/sakaloka.conf"
-
-            if [ -f "$SRC" ]; then
-              # Only update and reload if config changed
-              if ! diff -q "$SRC" "$DST" > /dev/null 2>&1; then
-                echo "==> Updating Nginx config for sakaloka"
-                sudo cp "$SRC" "$DST"
-                echo "==> Testing Nginx configuration..."
-                docker exec infra-nginx nginx -t
-                echo "==> Reloading Nginx..."
-                docker exec infra-nginx nginx -s reload
-              else
-                echo "==> Nginx config unchanged, skipping reload"
-              fi
-            fi
-
       - name: Pull and restart services
         uses: appleboy/ssh-action@v1
         env:
