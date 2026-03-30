@@ -24,19 +24,8 @@ services:
       - SURREALDB_URL=ws://surrealdb:8000
       - SURREALDB_USER=${SURREALDB_USER:-root}
       - SURREALDB_PASS=${SURREALDB_PASS:-sakaloka-dev-password}
-      - QDRANT_URL=http://qdrant:6333
-      - QDRANT_MASTER_KEY=${QDRANT_MASTER_KEY}
-      - ZENOH_CONNECT=tcp/zenoh:7447
-      - ZENOH_USER=earth
-      - ZENOH_PASS=Sakaloka123!
     depends_on:
-      mars-ockam:
-        condition: service_healthy
       surrealdb:
-        condition: service_healthy
-      qdrant:
-        condition: service_healthy
-      zenoh:
         condition: service_healthy
     healthcheck:
       # Earth's Dockerfile is debian-based and has curl installed

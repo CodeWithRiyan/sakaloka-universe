@@ -2,8 +2,13 @@
 name = "sakaloka-data"
 version = "0.1.0"
 edition = "2021"
-description = "Sakaloka-Universe — SurrealDB, Qdrant, and Zenoh client abstractions"
+description = "Sakaloka-Universe — SurrealDB client (Qdrant/Zenoh behind feature flags)"
 license = "MIT"
+
+[features]
+default = []
+qdrant = ["dep:qdrant-client"]
+zenoh  = ["dep:zenoh"]
 
 [dependencies]
 sakaloka-core   = { workspace = true }
@@ -17,5 +22,5 @@ tracing         = { workspace = true }
 surrealdb       = { workspace = true }
 surrealdb-types = { workspace = true }
 surrealdb-types-derive = { workspace = true }
-qdrant-client   = { workspace = true }
-zenoh           = { workspace = true }
+qdrant-client   = { workspace = true, optional = true }
+zenoh           = { workspace = true, optional = true }

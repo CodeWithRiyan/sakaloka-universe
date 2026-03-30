@@ -23,6 +23,8 @@
 //! - Tables use `SCHEMAFULL` — never create tables ad hoc.
 //! - All Zenoh event handlers must be idempotent.
 
+#[cfg(feature = "qdrant")]
 pub mod qdrant;
 pub mod surreal;
+#[cfg(feature = "zenoh")]
 pub mod zenoh;
