@@ -330,7 +330,7 @@ impl SurrealClient {
 
         let mut result = self
             .db
-            .query(format!("SELECT {ORGANIZATION_SELECT_FIELDS} FROM $id"))
+            .query("SELECT * FROM $id")
             .bind(("id", tid))
             .await
             .map_err(|e| SurrealError::Query(e.to_string()))?;
@@ -383,6 +383,7 @@ impl SurrealClient {
     /// Returns [`SurrealError::Query`] if the query fails.
     pub async fn list_products(
         &self,
+        org_id: Option<&str>,
         limit: u64,
         start: u64,
         search: Option<&str>,
@@ -398,17 +399,23 @@ impl SurrealClient {
         };
         let dir = if sort_desc { "DESC" } else { "ASC" };
 
+        let org_filter = if org_id.is_some() {
+            " AND organization_id = type::record('organization', $org_id)"
+        } else {
+            ""
+        };
+
         let query = if search.is_some() {
             format!(
-                "SELECT * FROM product WHERE deleted_at = NONE AND \
+                "SELECT * FROM product WHERE deleted_at = NONE{org_filter} AND \
                  (string::lowercase(name) CONTAINS string::lowercase($search) \
                  OR string::lowercase(sku) CONTAINS string::lowercase($search) \
-                 OR string::lowercase(barcode ?? '') CONTAINS string::lowercase($search)) \
+                 OR string::lowercase(barcode) CONTAINS string::lowercase($search)) \
                  ORDER BY {sort_col} {dir} LIMIT $limit START $start"
             )
         } else {
             format!(
-                "SELECT * FROM product WHERE deleted_at = NONE \
+                "SELECT * FROM product WHERE deleted_at = NONE{org_filter} \
                  ORDER BY {sort_col} {dir} LIMIT $limit START $start"
             )
         };
@@ -417,6 +424,9 @@ impl SurrealClient {
         q = q.bind(("limit", limit)).bind(("start", start));
         if let Some(s) = search {
             q = q.bind(("search", s.to_string()));
+        }
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
         }
 
         let mut result = q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
@@ -432,24 +442,39 @@ impl SurrealClient {
     ///
     /// # Errors
     /// Returns [`SurrealError::Query`] if the query fails.
-    pub async fn count_products(&self, search: Option<&str>) -> Result<u64, SurrealError> {
+    pub async fn count_products(
+        &self,
+        org_id: Option<&str>,
+        search: Option<&str>,
+    ) -> Result<u64, SurrealError> {
         #[derive(serde::Deserialize, SurrealValueMacro)]
         struct CountResult {
             count: u64,
         }
 
-        let query = if search.is_some() {
-            "SELECT count() AS count FROM product WHERE deleted_at = NONE AND \
-             (string::lowercase(name) CONTAINS string::lowercase($search) \
-             OR string::lowercase(sku) CONTAINS string::lowercase($search)) \
-             GROUP ALL"
+        let org_filter = if org_id.is_some() {
+            " AND organization_id = type::record('organization', $org_id)"
         } else {
-            "SELECT count() AS count FROM product WHERE deleted_at = NONE GROUP ALL"
+            ""
         };
 
-        let mut q = self.db.query(query);
+        let query = if search.is_some() {
+            format!(
+                "SELECT count() AS count FROM product WHERE deleted_at = NONE{org_filter} AND \
+                 (string::lowercase(name) CONTAINS string::lowercase($search) \
+                 OR string::lowercase(sku) CONTAINS string::lowercase($search)) \
+                 GROUP ALL"
+            )
+        } else {
+            format!("SELECT count() AS count FROM product WHERE deleted_at = NONE{org_filter} GROUP ALL")
+        };
+
+        let mut q = self.db.query(&query);
         if let Some(s) = search {
             q = q.bind(("search", s.to_string()));
+        }
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
         }
 
         let mut result = q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
@@ -665,6 +690,7 @@ impl SurrealClient {
     /// Returns [`SurrealError::Query`] if the query fails.
     pub async fn list_users(
         &self,
+        org_id: Option<&str>,
         limit: u64,
         start: u64,
         search: Option<&str>,
@@ -681,11 +707,22 @@ impl SurrealClient {
         };
         let dir = if sort_desc { "DESC" } else { "ASC" };
 
+        let org_clause = if org_id.is_some() {
+            "organization_id = type::record('organization', $org_id) AND "
+        } else {
+            ""
+        };
+
         let query = if search.is_some() {
             format!(
-                "SELECT * FROM user WHERE string::lowercase(email) CONTAINS string::lowercase($search) \
-                 OR string::lowercase(full_name ?? '') CONTAINS string::lowercase($search) \
-                 OR string::lowercase(username ?? '') CONTAINS string::lowercase($search) \
+                "SELECT * FROM user WHERE {org_clause}(string::lowercase(email) CONTAINS string::lowercase($search) \
+                 OR full_string::lowercase(name) CONTAINS string::lowercase($search) \
+                 OR string::lowercase(username) CONTAINS string::lowercase($search)) \
+                 ORDER BY {sort_col} {dir} LIMIT $limit START $start"
+            )
+        } else if org_id.is_some() {
+            format!(
+                "SELECT * FROM user WHERE organization_id = type::record('organization', $org_id) \
                  ORDER BY {sort_col} {dir} LIMIT $limit START $start"
             )
         } else {
@@ -696,6 +733,9 @@ impl SurrealClient {
         q = q.bind(("limit", limit)).bind(("start", start));
         if let Some(s) = search {
             q = q.bind(("search", s.to_string()));
+        }
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
         }
 
         let mut result = q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
@@ -711,25 +751,45 @@ impl SurrealClient {
     ///
     /// # Errors
     /// Returns [`SurrealError::Query`] if the query fails.
-    pub async fn count_users(&self, search: Option<&str>) -> Result<u64, SurrealError> {
+    pub async fn count_users(
+        &self,
+        org_id: Option<&str>,
+        search: Option<&str>,
+    ) -> Result<u64, SurrealError> {
         #[derive(serde::Deserialize, SurrealValueMacro)]
         struct CountResult {
             count: u64,
         }
 
-        let query = if search.is_some() {
-            "SELECT count() AS count FROM user WHERE \
-             string::lowercase(email) CONTAINS string::lowercase($search) \
-             OR string::lowercase(full_name ?? '') CONTAINS string::lowercase($search) \
-             OR string::lowercase(username ?? '') CONTAINS string::lowercase($search) \
-             GROUP ALL"
+        let org_clause = if org_id.is_some() {
+            "organization_id = type::record('organization', $org_id) AND "
         } else {
-            "SELECT count() AS count FROM user GROUP ALL"
+            ""
         };
 
-        let mut q = self.db.query(query);
+        let query = if search.is_some() {
+            format!(
+                "SELECT count() AS count FROM user WHERE {org_clause}(\
+                 string::lowercase(email) CONTAINS string::lowercase($search) \
+                 OR full_string::lowercase(name) CONTAINS string::lowercase($search) \
+                 OR string::lowercase(username) CONTAINS string::lowercase($search)) \
+                 GROUP ALL"
+            )
+        } else if org_id.is_some() {
+            "SELECT count() AS count FROM user WHERE \
+             organization_id = type::record('organization', $org_id) \
+             GROUP ALL"
+                .to_string()
+        } else {
+            "SELECT count() AS count FROM user GROUP ALL".to_string()
+        };
+
+        let mut q = self.db.query(&query);
         if let Some(s) = search {
             q = q.bind(("search", s.to_string()));
+        }
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
         }
 
         let mut result = q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
@@ -945,6 +1005,7 @@ impl SurrealClient {
     /// Returns [`SurrealError::Query`] if the query fails.
     pub async fn list_organizations(
         &self,
+        org_id: Option<&str>,
         limit: u64,
         start: u64,
         search: Option<&str>,
@@ -959,21 +1020,31 @@ impl SurrealClient {
         };
         let dir = if sort_desc { "DESC" } else { "ASC" };
 
-        let query = if search.is_some() {
-            format!(
-                "SELECT {ORGANIZATION_SELECT_FIELDS} FROM organization \
-                 WHERE string::lowercase(name) CONTAINS string::lowercase($search) \
-                 ORDER BY {sort_col} {dir} LIMIT $limit START $start"
-            )
+        let mut conditions: Vec<String> = vec![];
+        if org_id.is_some() {
+            conditions.push("id = type::record('organization', $org_id)".to_string());
+        }
+        if search.is_some() {
+            conditions
+                .push("string::lowercase(name) CONTAINS string::lowercase($search)".to_string());
+        }
+        let where_clause = if conditions.is_empty() {
+            String::new()
         } else {
-            format!(
-                "SELECT {ORGANIZATION_SELECT_FIELDS} FROM organization \
-                 ORDER BY {sort_col} {dir} LIMIT $limit START $start"
-            )
+            format!("WHERE {}", conditions.join(" AND "))
         };
+
+        let query = format!(
+            "SELECT {ORGANIZATION_SELECT_FIELDS} FROM organization \
+             {where_clause} \
+             ORDER BY {sort_col} {dir} LIMIT $limit START $start"
+        );
 
         let mut q = self.db.query(&query);
         q = q.bind(("limit", limit)).bind(("start", start));
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
+        }
         if let Some(s) = search {
             q = q.bind(("search", s.to_string()));
         }
@@ -991,21 +1062,36 @@ impl SurrealClient {
     ///
     /// # Errors
     /// Returns [`SurrealError::Query`] if the query fails.
-    pub async fn count_organizations(&self, search: Option<&str>) -> Result<u64, SurrealError> {
+    pub async fn count_organizations(
+        &self,
+        org_id: Option<&str>,
+        search: Option<&str>,
+    ) -> Result<u64, SurrealError> {
         #[derive(serde::Deserialize, SurrealValueMacro)]
         struct CountResult {
             count: u64,
         }
 
-        let query = if search.is_some() {
-            "SELECT count() AS count FROM organization \
-             WHERE string::lowercase(name) CONTAINS string::lowercase($search) \
-             GROUP ALL"
+        let mut conditions: Vec<String> = vec![];
+        if org_id.is_some() {
+            conditions.push("id = type::record('organization', $org_id)".to_string());
+        }
+        if search.is_some() {
+            conditions
+                .push("string::lowercase(name) CONTAINS string::lowercase($search)".to_string());
+        }
+        let where_clause = if conditions.is_empty() {
+            String::new()
         } else {
-            "SELECT count() AS count FROM organization GROUP ALL"
+            format!("WHERE {}", conditions.join(" AND "))
         };
 
-        let mut q = self.db.query(query);
+        let query = format!("SELECT count() AS count FROM organization {where_clause} GROUP ALL");
+
+        let mut q = self.db.query(&query);
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
+        }
         if let Some(s) = search {
             q = q.bind(("search", s.to_string()));
         }
@@ -1202,6 +1288,7 @@ impl SurrealClient {
     /// Returns [`SurrealError::Query`] if the query fails.
     pub async fn list_roles(
         &self,
+        org_id: Option<&str>,
         limit: u64,
         start: u64,
         search: Option<&str>,
@@ -1216,10 +1303,21 @@ impl SurrealClient {
         };
         let dir = if sort_desc { "DESC" } else { "ASC" };
 
+        let org_clause = if org_id.is_some() {
+            "organization_id = type::record('organization', $org_id) AND "
+        } else {
+            ""
+        };
+
         let query = if search.is_some() {
             format!(
                 "SELECT * FROM role \
-                 WHERE string::lowercase(name) CONTAINS string::lowercase($search) \
+                 WHERE {org_clause}string::lowercase(name) CONTAINS string::lowercase($search) \
+                 ORDER BY {sort_col} {dir} LIMIT $limit START $start"
+            )
+        } else if org_id.is_some() {
+            format!(
+                "SELECT * FROM role WHERE organization_id = type::record('organization', $org_id) \
                  ORDER BY {sort_col} {dir} LIMIT $limit START $start"
             )
         } else {
@@ -1230,6 +1328,9 @@ impl SurrealClient {
         q = q.bind(("limit", limit)).bind(("start", start));
         if let Some(s) = search {
             q = q.bind(("search", s.to_string()));
+        }
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
         }
 
         let mut result = q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
@@ -1245,23 +1346,43 @@ impl SurrealClient {
     ///
     /// # Errors
     /// Returns [`SurrealError::Query`] if the query fails.
-    pub async fn count_roles(&self, search: Option<&str>) -> Result<u64, SurrealError> {
+    pub async fn count_roles(
+        &self,
+        org_id: Option<&str>,
+        search: Option<&str>,
+    ) -> Result<u64, SurrealError> {
         #[derive(serde::Deserialize, SurrealValueMacro)]
         struct CountResult {
             count: u64,
         }
 
-        let query = if search.is_some() {
-            "SELECT count() AS count FROM role \
-             WHERE string::lowercase(name) CONTAINS string::lowercase($search) \
-             GROUP ALL"
+        let org_clause = if org_id.is_some() {
+            "organization_id = type::record('organization', $org_id) AND "
         } else {
-            "SELECT count() AS count FROM role GROUP ALL"
+            ""
         };
 
-        let mut q = self.db.query(query);
+        let query = if search.is_some() {
+            format!(
+                "SELECT count() AS count FROM role \
+                 WHERE {org_clause}string::lowercase(name) CONTAINS string::lowercase($search) \
+                 GROUP ALL"
+            )
+        } else if org_id.is_some() {
+            "SELECT count() AS count FROM role WHERE \
+             organization_id = type::record('organization', $org_id) \
+             GROUP ALL"
+                .to_string()
+        } else {
+            "SELECT count() AS count FROM role GROUP ALL".to_string()
+        };
+
+        let mut q = self.db.query(&query);
         if let Some(s) = search {
             q = q.bind(("search", s.to_string()));
+        }
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
         }
 
         let mut result = q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
@@ -1511,6 +1632,7 @@ impl SurrealClient {
     /// Returns [`SurrealError::Query`] if the query fails.
     pub async fn list_categories(
         &self,
+        org_id: Option<&str>,
         limit: u64,
         start: u64,
         search: Option<&str>,
@@ -1526,10 +1648,21 @@ impl SurrealClient {
         };
         let dir = if sort_desc { "DESC" } else { "ASC" };
 
+        let org_clause = if org_id.is_some() {
+            "organization_id = type::record('organization', $org_id) AND "
+        } else {
+            ""
+        };
+
         let query = if search.is_some() {
             format!(
                 "SELECT * FROM category \
-                 WHERE string::lowercase(name) CONTAINS string::lowercase($search) \
+                 WHERE {org_clause}string::lowercase(name) CONTAINS string::lowercase($search) \
+                 ORDER BY {sort_col} {dir} LIMIT $limit START $start"
+            )
+        } else if org_id.is_some() {
+            format!(
+                "SELECT * FROM category WHERE organization_id = type::record('organization', $org_id) \
                  ORDER BY {sort_col} {dir} LIMIT $limit START $start"
             )
         } else {
@@ -1540,6 +1673,9 @@ impl SurrealClient {
         q = q.bind(("limit", limit)).bind(("start", start));
         if let Some(s) = search {
             q = q.bind(("search", s.to_string()));
+        }
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
         }
 
         let mut result = q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
@@ -1555,23 +1691,43 @@ impl SurrealClient {
     ///
     /// # Errors
     /// Returns [`SurrealError::Query`] if the query fails.
-    pub async fn count_categories(&self, search: Option<&str>) -> Result<u64, SurrealError> {
+    pub async fn count_categories(
+        &self,
+        org_id: Option<&str>,
+        search: Option<&str>,
+    ) -> Result<u64, SurrealError> {
         #[derive(serde::Deserialize, SurrealValueMacro)]
         struct CountResult {
             count: u64,
         }
 
-        let query = if search.is_some() {
-            "SELECT count() AS count FROM category \
-             WHERE string::lowercase(name) CONTAINS string::lowercase($search) \
-             GROUP ALL"
+        let org_clause = if org_id.is_some() {
+            "organization_id = type::record('organization', $org_id) AND "
         } else {
-            "SELECT count() AS count FROM category GROUP ALL"
+            ""
         };
 
-        let mut q = self.db.query(query);
+        let query = if search.is_some() {
+            format!(
+                "SELECT count() AS count FROM category \
+                 WHERE {org_clause}string::lowercase(name) CONTAINS string::lowercase($search) \
+                 GROUP ALL"
+            )
+        } else if org_id.is_some() {
+            "SELECT count() AS count FROM category WHERE \
+             organization_id = type::record('organization', $org_id) \
+             GROUP ALL"
+                .to_string()
+        } else {
+            "SELECT count() AS count FROM category GROUP ALL".to_string()
+        };
+
+        let mut q = self.db.query(&query);
         if let Some(s) = search {
             q = q.bind(("search", s.to_string()));
+        }
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
         }
 
         let mut result = q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
@@ -1824,6 +1980,7 @@ impl SurrealClient {
     /// Returns [`SurrealError::Query`] if the query fails.
     pub async fn list_brands(
         &self,
+        org_id: Option<&str>,
         limit: u64,
         start: u64,
         search: Option<&str>,
@@ -1838,10 +1995,21 @@ impl SurrealClient {
         };
         let dir = if sort_desc { "DESC" } else { "ASC" };
 
+        let org_clause = if org_id.is_some() {
+            "organization_id = type::record('organization', $org_id) AND "
+        } else {
+            ""
+        };
+
         let query = if search.is_some() {
             format!(
                 "SELECT * FROM brand \
-                 WHERE string::lowercase(name) CONTAINS string::lowercase($search) \
+                 WHERE {org_clause}string::lowercase(name) CONTAINS string::lowercase($search) \
+                 ORDER BY {sort_col} {dir} LIMIT $limit START $start"
+            )
+        } else if org_id.is_some() {
+            format!(
+                "SELECT * FROM brand WHERE organization_id = type::record('organization', $org_id) \
                  ORDER BY {sort_col} {dir} LIMIT $limit START $start"
             )
         } else {
@@ -1852,6 +2020,9 @@ impl SurrealClient {
         q = q.bind(("limit", limit)).bind(("start", start));
         if let Some(s) = search {
             q = q.bind(("search", s.to_string()));
+        }
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
         }
 
         let mut result = q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
@@ -1867,23 +2038,43 @@ impl SurrealClient {
     ///
     /// # Errors
     /// Returns [`SurrealError::Query`] if the query fails.
-    pub async fn count_brands(&self, search: Option<&str>) -> Result<u64, SurrealError> {
+    pub async fn count_brands(
+        &self,
+        org_id: Option<&str>,
+        search: Option<&str>,
+    ) -> Result<u64, SurrealError> {
         #[derive(serde::Deserialize, SurrealValueMacro)]
         struct CountResult {
             count: u64,
         }
 
-        let query = if search.is_some() {
-            "SELECT count() AS count FROM brand \
-             WHERE string::lowercase(name) CONTAINS string::lowercase($search) \
-             GROUP ALL"
+        let org_clause = if org_id.is_some() {
+            "organization_id = type::record('organization', $org_id) AND "
         } else {
-            "SELECT count() AS count FROM brand GROUP ALL"
+            ""
         };
 
-        let mut q = self.db.query(query);
+        let query = if search.is_some() {
+            format!(
+                "SELECT count() AS count FROM brand \
+                 WHERE {org_clause}string::lowercase(name) CONTAINS string::lowercase($search) \
+                 GROUP ALL"
+            )
+        } else if org_id.is_some() {
+            "SELECT count() AS count FROM brand WHERE \
+             organization_id = type::record('organization', $org_id) \
+             GROUP ALL"
+                .to_string()
+        } else {
+            "SELECT count() AS count FROM brand GROUP ALL".to_string()
+        };
+
+        let mut q = self.db.query(&query);
         if let Some(s) = search {
             q = q.bind(("search", s.to_string()));
+        }
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
         }
 
         let mut result = q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
@@ -2057,6 +2248,7 @@ impl SurrealClient {
     #[allow(clippy::too_many_arguments)]
     pub async fn list_orders(
         &self,
+        org_id: Option<&str>,
         limit: u64,
         start: u64,
         search: Option<&str>,
@@ -2076,10 +2268,13 @@ impl SurrealClient {
 
         let mut conditions: Vec<String> = Vec::new();
 
+        if org_id.is_some() {
+            conditions.push("organization_id = type::record('organization', $org_id)".to_string());
+        }
         if search.is_some() {
             conditions.push(
                 "(string::lowercase(order_number) CONTAINS string::lowercase($search) \
-                 OR string::lowercase(customer_name ?? '') CONTAINS string::lowercase($search))"
+                 OR string::lowercase(customer_name) CONTAINS string::lowercase($search))"
                     .to_string(),
             );
         }
@@ -2102,6 +2297,9 @@ impl SurrealClient {
 
         let mut q = self.db.query(&query);
         q = q.bind(("limit", limit)).bind(("start", start));
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
+        }
         if let Some(s) = search {
             q = q.bind(("search", s.to_string()));
         }
@@ -2129,6 +2327,7 @@ impl SurrealClient {
     /// Returns [`SurrealError::Query`] if the query fails.
     pub async fn count_orders(
         &self,
+        org_id: Option<&str>,
         search: Option<&str>,
         status_filter: Option<&[&str]>,
         status_exclude: Option<&[&str]>,
@@ -2140,10 +2339,13 @@ impl SurrealClient {
 
         let mut conditions: Vec<String> = Vec::new();
 
+        if org_id.is_some() {
+            conditions.push("organization_id = type::record('organization', $org_id)".to_string());
+        }
         if search.is_some() {
             conditions.push(
                 "(string::lowercase(order_number) CONTAINS string::lowercase($search) \
-                 OR string::lowercase(customer_name ?? '') CONTAINS string::lowercase($search))"
+                 OR string::lowercase(customer_name) CONTAINS string::lowercase($search))"
                     .to_string(),
             );
         }
@@ -2163,6 +2365,9 @@ impl SurrealClient {
         let query = format!("SELECT count() AS count FROM order {where_clause} GROUP ALL");
 
         let mut q = self.db.query(&query);
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
+        }
         if let Some(s) = search {
             q = q.bind(("search", s.to_string()));
         }
@@ -2367,6 +2572,68 @@ impl SurrealClient {
         item.ok_or_else(|| SurrealError::Query("Failed to create order item".into()))
     }
 
+    /// Inserts multiple order items in a single query.
+    ///
+    /// Builds a multi-statement `CREATE` batch so that N items require only
+    /// **one** WebSocket round-trip instead of N.
+    ///
+    /// # Errors
+    /// Returns [`SurrealError::Query`] if any statement in the batch fails.
+    pub async fn create_order_items_batch(
+        &self,
+        order_id: &str,
+        items: &[(String, String, i32, i64, i64)], // (product_id, item_name, qty, unit_price, total_price)
+    ) -> Result<(), SurrealError> {
+        if items.is_empty() {
+            return Ok(());
+        }
+
+        let order_key = order_id.replace("order:", "");
+
+        // Build a single multi-statement query for all items.
+        let mut query_str = String::new();
+        let mut bindings: Vec<(String, serde_json::Value)> = vec![];
+
+        bindings.push(("order_key".to_string(), serde_json::json!(order_key)));
+
+        for (i, (product_id, item_name, quantity, unit_price, total_price)) in
+            items.iter().enumerate()
+        {
+            let product_key = product_id.replace("product:", "");
+            let pid_key = format!("pid_{i}");
+            let name_key = format!("name_{i}");
+            let qty_key = format!("qty_{i}");
+            let up_key = format!("up_{i}");
+            let tp_key = format!("tp_{i}");
+
+            query_str.push_str(&format!(
+                "CREATE order_item SET \
+                 order_id = type::record('order', $order_key), \
+                 product_id = type::record('product', ${pid_key}), \
+                 item_name = ${name_key}, \
+                 quantity = ${qty_key}, \
+                 unit_price = ${up_key}, \
+                 discount_amount = 0, \
+                 total_price = ${tp_key}; "
+            ));
+
+            bindings.push((pid_key, serde_json::json!(product_key)));
+            bindings.push((name_key, serde_json::json!(item_name)));
+            bindings.push((qty_key, serde_json::json!(quantity)));
+            bindings.push((up_key, serde_json::json!(unit_price)));
+            bindings.push((tp_key, serde_json::json!(total_price)));
+        }
+
+        let mut q = self.db.query(&query_str);
+        for (key, val) in bindings {
+            q = q.bind((key, val));
+        }
+
+        q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
+
+        Ok(())
+    }
+
     /// Lists all order items belonging to a specific order.
     ///
     /// # Errors
@@ -2468,6 +2735,7 @@ impl SurrealClient {
     /// Returns [`SurrealError::Query`] if the query fails.
     pub async fn list_inventory(
         &self,
+        org_id: Option<&str>,
         limit: u64,
         start: u64,
         sort_by: &str,
@@ -2481,17 +2749,23 @@ impl SurrealClient {
         };
         let dir = if sort_desc { "DESC" } else { "ASC" };
 
+        let where_clause = if org_id.is_some() {
+            "WHERE organization_id = type::record('organization', $org_id) "
+        } else {
+            ""
+        };
+
         let query = format!(
-            "SELECT * FROM inventory_item ORDER BY {sort_col} {dir} LIMIT $limit START $start"
+            "SELECT * FROM inventory_item {where_clause}ORDER BY {sort_col} {dir} LIMIT $limit START $start"
         );
 
-        let mut result = self
-            .db
-            .query(&query)
-            .bind(("limit", limit))
-            .bind(("start", start))
-            .await
-            .map_err(|e| SurrealError::Query(e.to_string()))?;
+        let mut q = self.db.query(&query);
+        q = q.bind(("limit", limit)).bind(("start", start));
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
+        }
+
+        let mut result = q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
 
         let items: Vec<sakaloka_core::models::inventory::InventoryItem> = result
             .take(0)
@@ -2504,17 +2778,26 @@ impl SurrealClient {
     ///
     /// # Errors
     /// Returns [`SurrealError::Query`] if the query fails.
-    pub async fn count_inventory(&self) -> Result<u64, SurrealError> {
+    pub async fn count_inventory(&self, org_id: Option<&str>) -> Result<u64, SurrealError> {
         #[derive(serde::Deserialize, SurrealValueMacro)]
         struct CountResult {
             count: u64,
         }
 
-        let mut result = self
-            .db
-            .query("SELECT count() AS count FROM inventory_item GROUP ALL")
-            .await
-            .map_err(|e| SurrealError::Query(e.to_string()))?;
+        let where_clause = if org_id.is_some() {
+            "WHERE organization_id = type::record('organization', $org_id) "
+        } else {
+            ""
+        };
+
+        let query = format!("SELECT count() AS count FROM inventory_item {where_clause}GROUP ALL");
+
+        let mut q = self.db.query(&query);
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
+        }
+
+        let mut result = q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
 
         let row: Option<CountResult> = result
             .take(0)
@@ -2530,21 +2813,30 @@ impl SurrealClient {
     /// Returns [`SurrealError::Query`] if the query fails.
     pub async fn list_low_stock(
         &self,
+        org_id: Option<&str>,
         limit: u64,
         start: u64,
     ) -> Result<Vec<sakaloka_core::models::inventory::InventoryItem>, SurrealError> {
-        let mut result = self
-            .db
-            .query(
-                "SELECT * FROM inventory_item \
-                 WHERE quantity_available <= min_stock_level \
-                 ORDER BY quantity_available ASC \
-                 LIMIT $limit START $start",
-            )
-            .bind(("limit", limit))
-            .bind(("start", start))
-            .await
-            .map_err(|e| SurrealError::Query(e.to_string()))?;
+        let org_filter = if org_id.is_some() {
+            " AND organization_id = type::record('organization', $org_id)"
+        } else {
+            ""
+        };
+
+        let query = format!(
+            "SELECT * FROM inventory_item \
+             WHERE quantity_available <= min_stock_level{org_filter} \
+             ORDER BY quantity_available ASC \
+             LIMIT $limit START $start"
+        );
+
+        let mut q = self.db.query(&query);
+        q = q.bind(("limit", limit)).bind(("start", start));
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
+        }
+
+        let mut result = q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
 
         let items: Vec<sakaloka_core::models::inventory::InventoryItem> = result
             .take(0)
@@ -2558,21 +2850,30 @@ impl SurrealClient {
     ///
     /// # Errors
     /// Returns [`SurrealError::Query`] if the query fails.
-    pub async fn count_low_stock(&self) -> Result<u64, SurrealError> {
+    pub async fn count_low_stock(&self, org_id: Option<&str>) -> Result<u64, SurrealError> {
         #[derive(serde::Deserialize, SurrealValueMacro)]
         struct CountResult {
             count: u64,
         }
 
-        let mut result = self
-            .db
-            .query(
-                "SELECT count() AS count FROM inventory_item \
-                 WHERE quantity_available <= min_stock_level \
-                 GROUP ALL",
-            )
-            .await
-            .map_err(|e| SurrealError::Query(e.to_string()))?;
+        let org_filter = if org_id.is_some() {
+            " AND organization_id = type::record('organization', $org_id)"
+        } else {
+            ""
+        };
+
+        let query = format!(
+            "SELECT count() AS count FROM inventory_item \
+             WHERE quantity_available <= min_stock_level{org_filter} \
+             GROUP ALL"
+        );
+
+        let mut q = self.db.query(&query);
+        if let Some(oid) = org_id {
+            q = q.bind(("org_id", oid.replace("organization:", "")));
+        }
+
+        let mut result = q.await.map_err(|e| SurrealError::Query(e.to_string()))?;
 
         let row: Option<CountResult> = result
             .take(0)

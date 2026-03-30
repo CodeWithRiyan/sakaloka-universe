@@ -17,18 +17,21 @@ use crate::views::{
 /// `GET /api/inventory/pos-stock` — list all stock items with pagination.
 pub async fn list(
     State(state): State<AppState>,
-    Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
+    Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<PaginatedResponse<StockResponse>>, ApiError> {
     let page = params.page();
     let limit = params.limit();
     let start = (page - 1) * limit;
+    let org_id = claims.org_id.as_deref();
 
     let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
     let sort_desc = params.is_desc();
     let (count_result, list_result) = tokio::join!(
-        state.db.count_inventory(),
-        state.db.list_inventory(limit, start, sort_by, sort_desc),
+        state.db.count_inventory(org_id),
+        state
+            .db
+            .list_inventory(org_id, limit, start, sort_by, sort_desc),
     );
     let total = count_result.map_err(|e| db_err(e, "Failed to count inventory items"))?;
     let items = list_result.map_err(|e| db_err(e, "Failed to list inventory items"))?;
@@ -50,16 +53,17 @@ pub async fn list(
 /// stock level.
 pub async fn low_stock(
     State(state): State<AppState>,
-    Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
+    Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<PaginatedResponse<StockResponse>>, ApiError> {
     let page = params.page();
     let limit = params.limit();
     let start = (page - 1) * limit;
+    let org_id = claims.org_id.as_deref();
 
     let (count_result, list_result) = tokio::join!(
-        state.db.count_low_stock(),
-        state.db.list_low_stock(limit, start),
+        state.db.count_low_stock(org_id),
+        state.db.list_low_stock(org_id, limit, start),
     );
     let total = count_result.map_err(|e| db_err(e, "Failed to count low stock items"))?;
     let items = list_result.map_err(|e| db_err(e, "Failed to query low stock items"))?;

@@ -17,6 +17,7 @@ use crate::views::{
 /// `GET /api/products/brands` — list brands with pagination and search.
 pub async fn list(
     State(state): State<AppState>,
+    Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<PaginatedResponse<BrandResponse>>, ApiError> {
     let page = params.page();
@@ -26,11 +27,12 @@ pub async fn list(
     let search = params.search.as_deref();
     let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
     let sort_desc = params.is_desc();
+    let org_id = claims.org_id.as_deref();
     let (count_result, list_result) = tokio::join!(
-        state.db.count_brands(search),
+        state.db.count_brands(org_id, search),
         state
             .db
-            .list_brands(limit, start, search, sort_by, sort_desc),
+            .list_brands(org_id, limit, start, search, sort_by, sort_desc),
     );
     let total = count_result.map_err(|e| db_err(e, "Failed to count brands"))?;
     let items = list_result.map_err(|e| db_err(e, "Failed to list brands"))?;

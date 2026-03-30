@@ -19,17 +19,20 @@ use super::helpers::{generate_order_number, ResolvedOrderItem};
 /// `GET /api/pos/menu` — list products available for the POS order screen.
 pub async fn menu(
     State(state): State<AppState>,
-    Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
+    Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<PaginatedResponse<MenuResponse>>, ApiError> {
     let page = params.page();
     let limit = params.limit();
     let start = (page - 1) * limit;
+    let org_id = claims.org_id.as_deref();
 
     let search = params.search.as_deref();
     let (count_result, list_result) = tokio::join!(
-        state.db.count_products(search),
-        state.db.list_products(limit, start, search, "name", false),
+        state.db.count_products(org_id, search),
+        state
+            .db
+            .list_products(org_id, limit, start, search, "name", false),
     );
     let total = count_result.map_err(|e| db_err(e, "Failed to count menu items"))?;
     let items = list_result.map_err(|e| db_err(e, "Failed to list menu items"))?;
@@ -83,21 +86,22 @@ pub async fn menu(
 /// `GET /api/pos/orders` — list all orders with pagination.
 pub async fn list_orders(
     State(state): State<AppState>,
-    Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
+    Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<PaginatedResponse<OrderResponse>>, ApiError> {
     let page = params.page();
     let limit = params.limit();
     let start = (page - 1) * limit;
+    let org_id = claims.org_id.as_deref();
 
     let search = params.search.as_deref();
     let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
     let sort_desc = params.is_desc();
     let (count_result, list_result) = tokio::join!(
-        state.db.count_orders(search, None, None),
+        state.db.count_orders(org_id, search, None, None),
         state
             .db
-            .list_orders(limit, start, search, sort_by, sort_desc, None, None),
+            .list_orders(org_id, limit, start, search, sort_by, sort_desc, None, None),
     );
     let total = count_result.map_err(|e| db_err(e, "Failed to count orders"))?;
     let items = list_result.map_err(|e| db_err(e, "Failed to list orders"))?;
@@ -119,18 +123,22 @@ pub async fn list_orders(
 /// orders.
 pub async fn active_orders(
     State(state): State<AppState>,
-    Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
+    Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<PaginatedResponse<OrderResponse>>, ApiError> {
     let page = params.page();
     let limit = params.limit();
     let start = (page - 1) * limit;
+    let org_id = claims.org_id.as_deref();
 
     let exclude_statuses: &[&str] = &["completed", "cancelled"];
 
     let (count_result, list_result) = tokio::join!(
-        state.db.count_orders(None, None, Some(exclude_statuses)),
+        state
+            .db
+            .count_orders(org_id, None, None, Some(exclude_statuses)),
         state.db.list_orders(
+            org_id,
             limit,
             start,
             None,
@@ -161,18 +169,22 @@ pub async fn active_orders(
 /// `GET /api/pos/orders/history` — list completed / cancelled orders.
 pub async fn order_history(
     State(state): State<AppState>,
-    Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
+    Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<PaginatedResponse<OrderResponse>>, ApiError> {
     let page = params.page();
     let limit = params.limit();
     let start = (page - 1) * limit;
+    let org_id = claims.org_id.as_deref();
 
     let filter_statuses: &[&str] = &["completed", "cancelled"];
 
     let (count_result, list_result) = tokio::join!(
-        state.db.count_orders(None, Some(filter_statuses), None),
+        state
+            .db
+            .count_orders(org_id, None, Some(filter_statuses), None),
         state.db.list_orders(
+            org_id,
             limit,
             start,
             None,
@@ -312,21 +324,25 @@ pub async fn create_order(
 
     let order_id = record_id_to_string(&order.id);
 
-    // Insert all order items
-    for item in &resolved_items {
-        state
-            .db
-            .create_order_item(
-                &order_id,
-                &item.product_id,
-                &item.item_name,
+    // Batch-insert all order items in a single round-trip
+    let batch_items: Vec<(String, String, i32, i64, i64)> = resolved_items
+        .iter()
+        .map(|item| {
+            (
+                item.product_id.clone(),
+                item.item_name.clone(),
                 item.quantity,
                 item.unit_price,
                 item.total_price,
             )
-            .await
-            .map_err(|e| db_err(e, "Failed to create order item"))?;
-    }
+        })
+        .collect();
+
+    state
+        .db
+        .create_order_items_batch(&order_id, &batch_items)
+        .await
+        .map_err(|e| db_err(e, "Failed to create order items"))?;
 
     // Fetch the items back for the response
     let items = state

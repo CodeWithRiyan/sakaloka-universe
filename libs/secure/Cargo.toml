@@ -19,7 +19,9 @@ time          = { workspace = true }
 tracing       = { workspace = true }
 axum          = { workspace = true }
 tower         = { workspace = true }
+tokio         = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio-test = { workspace = true }
 tower = { workspace = true, features = ["util"] }

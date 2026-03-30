@@ -20,7 +20,7 @@ use crate::views::{
 /// `GET /api/products` — list products with pagination, search, and sorting.
 pub async fn list(
     State(state): State<AppState>,
-    Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
+    Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<PaginatedResponse<ProductResponse>>, ApiError> {
     let page = params.page();
@@ -29,14 +29,15 @@ pub async fn list(
 
     let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
     let sort_desc = params.is_desc();
+    let org_id = claims.org_id.as_deref();
 
     // Parallelize count + list queries
     let search = params.search.as_deref();
     let (count_result, list_result) = tokio::join!(
-        state.db.count_products(search),
+        state.db.count_products(org_id, search),
         state
             .db
-            .list_products(limit, start, search, sort_by, sort_desc),
+            .list_products(org_id, limit, start, search, sort_by, sort_desc),
     );
     let total = count_result.map_err(|e| db_err(e, "Failed to count products"))?;
     let items = list_result.map_err(|e| db_err(e, "Failed to list products"))?;

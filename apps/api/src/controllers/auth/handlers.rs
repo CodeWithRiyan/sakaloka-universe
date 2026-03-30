@@ -58,7 +58,7 @@ pub async fn login(
         }
     };
 
-    let valid = match sakaloka_secure::argon2::verify_password(&pw, &user.password_hash) {
+    let valid = match sakaloka_secure::argon2::verify_password(&pw, &user.password_hash).await {
         Ok(v) => v,
         Err(e) => {
             tracing::error!(error = %e, "Password verification error");
@@ -173,6 +173,7 @@ pub async fn register(
         Err(e) => return Ok(Json(ApiResponse::error("validation_error", &e.to_string()))),
     };
     let password_hash = sakaloka_secure::argon2::hash_password(&pw)
+        .await
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to hash password")))?;
 
     // 3. Create account entities (org → role → user → set owner)

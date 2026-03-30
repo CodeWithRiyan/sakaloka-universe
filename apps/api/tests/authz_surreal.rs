@@ -181,6 +181,7 @@ async fn seed_limited_user(state: &AppState) -> Result<(String, String)> {
 
     let password = "Sakaloka123!";
     let password_hash = argon2::hash_password(&Password::new(password)?)
+        .await
         .map_err(|error| anyhow!("failed to hash test password: {error}"))?;
     let email = format!("{}@example.test", unique("limited-user"));
 

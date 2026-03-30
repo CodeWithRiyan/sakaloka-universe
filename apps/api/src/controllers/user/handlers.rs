@@ -16,21 +16,22 @@ use crate::views::{
 /// `GET /api/users` — list users with pagination and search.
 pub async fn list(
     State(state): State<AppState>,
-    Extension(_claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
+    Extension(claims): Extension<sakaloka_secure::jwt::user_claims::UserClaims>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<PaginatedResponse<UserResponse>>, ApiError> {
     let page = params.page();
     let limit = params.limit();
     let start = (page - 1) * limit;
+    let org_id = claims.org_id.as_deref();
 
     let search = params.search.as_deref();
     let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
     let sort_desc = params.is_desc();
     let (count_result, list_result) = tokio::join!(
-        state.db.count_users(search),
+        state.db.count_users(org_id, search),
         state
             .db
-            .list_users(limit, start, search, sort_by, sort_desc),
+            .list_users(org_id, limit, start, search, sort_by, sort_desc),
     );
     let total = count_result.map_err(|e| db_err(e, "Failed to count users"))?;
     let items = list_result.map_err(|e| db_err(e, "Failed to list users"))?;
@@ -110,6 +111,7 @@ pub async fn create(
     })?;
 
     let password_hash = sakaloka_secure::argon2::hash_password(&pw)
+        .await
         .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to hash password")))?;
 
     let org_id = crate::helpers::org_resolver::resolve_caller_org(&state, &claims).await?;
@@ -173,6 +175,7 @@ pub async fn update(
         })?;
         Some(
             sakaloka_secure::argon2::hash_password(&pw)
+                .await
                 .map_err(|_| ApiError::Internal(anyhow::anyhow!("Failed to hash password")))?,
         )
     } else {
