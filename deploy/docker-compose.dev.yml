@@ -4,6 +4,7 @@
 services:
 
   sakaloka-api:
+    image: ghcr.io/codewithriyan/sakaloka-api:${SAKALOKA_ENV:-dev}
     container_name: sakaloka-dev-api
     ports:
       - "127.0.0.1:60000:3000"
@@ -12,6 +13,7 @@ services:
       - net-dev
 
   sakaloka-surrealdb:
+    image: surrealdb/surrealdb:v3.0.4
     container_name: sakaloka-dev-surrealdb
     command: start --log info --user ${SURREALDB_USER:-root} --pass ${SURREALDB_PASS:-sakaloka-dev-password} memory
     ports:
@@ -20,6 +22,7 @@ services:
       - sakaloka-dev-net
 
   sakaloka-zenoh:
+    image: eclipse/zenoh:1.0.0
     container_name: sakaloka-dev-zenoh
     ports:
       - "127.0.0.1:60020:7447"
@@ -30,6 +33,7 @@ services:
       - sakaloka-dev-net
 
   sakaloka-qdrant:
+    image: qdrant/qdrant:latest
     container_name: sakaloka-dev-qdrant
     ports:
       - "127.0.0.1:60030:6333"

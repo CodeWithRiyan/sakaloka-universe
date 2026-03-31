@@ -4,6 +4,7 @@
 services:
 
   sakaloka-api:
+    image: ghcr.io/codewithriyan/sakaloka-api:${SAKALOKA_ENV:-prod}
     container_name: sakaloka-prod-api
     ports:
       - "127.0.0.1:60300:3000"
@@ -15,6 +16,7 @@ services:
       - sakaloka-prod-net
 
   sakaloka-surrealdb:
+    image: surrealdb/surrealdb:v3.0.4
     container_name: sakaloka-prod-surrealdb
     command: start --log warn --user ${SURREALDB_USER:-root} --pass ${SURREALDB_PASS} rocksdb://data
     ports:
@@ -29,6 +31,7 @@ services:
       - sakaloka-prod-net
 
   sakaloka-zenoh:
+    image: eclipse/zenoh:1.0.0
     container_name: sakaloka-prod-zenoh
     ports:
       - "127.0.0.1:60320:7447"
@@ -39,6 +42,7 @@ services:
       - sakaloka-prod-net
 
   sakaloka-qdrant:
+    image: qdrant/qdrant:latest
     container_name: sakaloka-prod-qdrant
     ports:
       - "127.0.0.1:60330:6333"
