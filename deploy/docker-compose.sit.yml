@@ -8,6 +8,8 @@ services:
     container_name: sakaloka-sit-api
     ports:
       - "127.0.0.1:60100:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
     networks:
       - net-sit
 

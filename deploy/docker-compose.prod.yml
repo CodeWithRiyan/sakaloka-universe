@@ -12,6 +12,8 @@ services:
       resources:
         limits:
           memory: 256M
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
     networks:
       - net-prod
 
