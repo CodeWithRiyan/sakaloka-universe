@@ -9,7 +9,7 @@ services:
     ports:
       - "127.0.0.1:60100:3000"
     networks:
-      - sakaloka-sit-net
+      - net-sit
 
   sakaloka-surrealdb:
     image: surrealdb/surrealdb:v3.0.4
@@ -20,7 +20,7 @@ services:
     volumes:
       - sakaloka-sit-surrealdb-data:/data
     networks:
-      - sakaloka-sit-net
+      - net-sit
 
   sakaloka-zenoh:
     image: eclipse/zenoh:1.0.0
@@ -31,7 +31,7 @@ services:
       - ./config/zenoh.sit.json5:/zenoh.json5:ro
       - ./config/zenoh-users.sit.dict:/zenoh-users.dict:ro
     networks:
-      - sakaloka-sit-net
+      - net-sit
 
   sakaloka-qdrant:
     image: qdrant/qdrant:latest
@@ -41,12 +41,12 @@ services:
     volumes:
       - sakaloka-sit-qdrant-data:/qdrant/storage
     networks:
-      - sakaloka-sit-net
+      - net-sit
 
 volumes:
   sakaloka-sit-surrealdb-data:
   sakaloka-sit-qdrant-data:
 
 networks:
-  sakaloka-sit-net:
-    driver: bridge
+  net-sit:
+    external: true
