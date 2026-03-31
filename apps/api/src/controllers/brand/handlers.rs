@@ -8,6 +8,7 @@ use axum::{
 use crate::app::AppState;
 use crate::error::ApiError;
 use crate::helpers::error_map::db_err;
+use crate::helpers::patch_builder::PatchBuilder;
 use crate::views::{
     brand::{BrandResponse, CreateBrandRequest, UpdateBrandRequest},
     slugify, ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse,
@@ -94,7 +95,7 @@ pub async fn create(
             payload.description.as_deref(),
             payload.logo.as_deref(),
             payload.website.as_deref(),
-            Some(claims.sub.as_str()),
+            &claims.sub,
         )
         .await
         .map_err(|e| db_err(e, "Failed to create brand"))?;
@@ -123,16 +124,17 @@ pub async fn update(
 
     let slug = payload.name.as_ref().map(|n| slugify(n));
 
+    let updates = PatchBuilder::new()
+        .set_string("name", payload.name)
+        .set_string("slug", slug)
+        .set_string("description", payload.description)
+        .set_string("logo", payload.logo)
+        .set_string("website", payload.website)
+        .build();
+
     let updated = state
         .db
-        .update_brand(
-            &id,
-            payload.name.as_deref(),
-            slug.as_deref(),
-            payload.description.as_deref(),
-            payload.logo.as_deref(),
-            payload.website.as_deref(),
-        )
+        .update_brand(&id, &updates)
         .await
         .map_err(|e| db_err(e, "Failed to update brand"))?;
 

@@ -11,8 +11,7 @@ use crate::helpers::error_map::db_err;
 use crate::helpers::patch_builder::PatchBuilder;
 use crate::views::{
     organization::{CreateOrgRequest, OrganizationResponse, SelectOrgRequest, UpdateOrgRequest},
-    record_id_to_string, ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse,
-    PaginationParams,
+    ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
 /// `GET /api/organizations` — list organizations the caller has access to.
@@ -151,7 +150,7 @@ pub async fn create(
         .map_err(|e| db_err(e, "Failed to create organization"))?;
 
     // Apply additional fields via update if present
-    let org_id = record_id_to_string(&result.id);
+    let org_id = result.id.clone();
     let extras = PatchBuilder::new()
         .set_string("code", payload.code)
         .set_string("description", payload.description)

@@ -9,6 +9,7 @@ services:
       - "127.0.0.1:60000:3000"
     networks:
       - sakaloka-dev-net
+      - net-dev
 
   sakaloka-surrealdb:
     container_name: sakaloka-dev-surrealdb
@@ -43,3 +44,5 @@ volumes:
 networks:
   sakaloka-dev-net:
     driver: bridge
+  net-dev:
+    external: true

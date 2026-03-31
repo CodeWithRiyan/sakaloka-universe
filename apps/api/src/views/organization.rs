@@ -3,8 +3,6 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use super::record_id_to_string;
-
 /// Full organization response DTO.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -152,12 +150,12 @@ impl OrganizationResponse {
     /// model into a response DTO.
     pub fn from_model(model: &sakaloka_core::models::organization::Organization) -> Self {
         Self {
-            id: record_id_to_string(&model.id),
+            id: model.id.clone(),
             name: model.name.clone(),
             org_type: model.org_type.clone(),
             code: model.code.clone(),
             description: model.description.clone(),
-            parent_id: model.parent_id.as_ref().map(record_id_to_string),
+            parent_id: model.parent_id.clone(),
             email: model.email.clone(),
             phone: model.phone.clone(),
             website: model.website.clone(),
@@ -171,7 +169,7 @@ impl OrganizationResponse {
             logo: model.logo.clone(),
             settings: model.settings.clone(),
             is_active: model.is_active,
-            owner_id: model.owner_id.as_ref().map(record_id_to_string),
+            owner_id: model.owner_id.clone(),
             created_at: model.created_at.to_string(),
             updated_at: model.updated_at.to_string(),
         }

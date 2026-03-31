@@ -1,14 +1,10 @@
 use serde::{Deserialize, Serialize};
-use surrealdb::types::{Datetime, RecordId as Thing};
-use surrealdb_types::SurrealValue;
-use surrealdb_types_derive::SurrealValue as SurrealValueMacro;
 
-/// Represents a Product record from SurrealDB.
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema, SurrealValueMacro)]
+/// Represents a Product record.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Product {
-    /// The record ID (e.g. `product:01J...`).
-    #[schema(value_type = String)]
-    pub id: Thing,
+    /// The record ID.
+    pub id: String,
     /// The name of the product.
     pub name: String,
     /// A detailed description.
@@ -22,11 +18,9 @@ pub struct Product {
     /// Cost/purchase price in smallest currency unit.
     pub cost_price: Option<i64>,
     /// Link to category.
-    #[schema(value_type = Option<String>)]
-    pub category_id: Option<Thing>,
+    pub category_id: Option<String>,
     /// Link to brand.
-    #[schema(value_type = Option<String>)]
-    pub brand_id: Option<Thing>,
+    pub brand_id: Option<String>,
     /// Product image URL.
     pub image_url: Option<String>,
     /// Weight in kilograms.
@@ -42,18 +36,16 @@ pub struct Product {
     /// Tags for search and filtering.
     pub tags: Option<Vec<String>>,
     /// Owning organization.
-    #[schema(value_type = String)]
-    pub organization_id: Thing,
+    pub organization_id: String,
     /// User who created this product.
-    #[schema(value_type = Option<String>)]
-    pub created_by: Option<Thing>,
+    pub created_by: Option<String>,
     /// Soft-delete timestamp.
     #[schema(value_type = Option<String>)]
-    pub deleted_at: Option<Datetime>,
+    pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
     /// Creation timestamp.
     #[schema(value_type = String)]
-    pub created_at: Datetime,
+    pub created_at: chrono::DateTime<chrono::Utc>,
     /// Update timestamp.
     #[schema(value_type = String)]
-    pub updated_at: Datetime,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
 }

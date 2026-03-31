@@ -15,20 +15,7 @@ pub mod stock;
 pub mod user;
 
 use serde::{Deserialize, Serialize};
-use surrealdb::types::{RecordId, RecordIdKey};
 use utoipa::{IntoParams, ToSchema};
-
-/// Extract the key portion of a SurrealDB [`RecordId`] as a string.
-///
-/// For example, `product:abc123` becomes `"abc123"`.
-pub fn record_id_to_string(id: &RecordId) -> String {
-    match &id.key {
-        RecordIdKey::String(s) => s.clone(),
-        RecordIdKey::Number(n) => n.to_string(),
-        RecordIdKey::Uuid(u) => u.to_string(),
-        other => format!("{other:?}"),
-    }
-}
 
 /// Produce a URL-friendly slug from a name.
 ///

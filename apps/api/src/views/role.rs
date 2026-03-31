@@ -3,8 +3,6 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use super::record_id_to_string;
-
 /// Full role response DTO.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -84,13 +82,13 @@ impl RoleResponse {
     /// into a response DTO.
     pub fn from_model(model: &sakaloka_core::models::role::Role) -> Self {
         Self {
-            id: record_id_to_string(&model.id),
+            id: model.id.clone(),
             name: model.name.clone(),
             description: model.description.clone(),
-            organization_id: record_id_to_string(&model.organization_id),
+            organization_id: model.organization_id.clone(),
             is_system_role: model.is_system_role,
             permissions: model.permissions.clone(),
-            created_by: model.created_by.as_ref().map(record_id_to_string),
+            created_by: model.created_by.clone(),
             is_active: model.is_active,
             created_at: model.created_at.to_string(),
             updated_at: model.updated_at.to_string(),

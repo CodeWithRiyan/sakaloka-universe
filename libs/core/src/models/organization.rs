@@ -1,14 +1,10 @@
 use serde::{Deserialize, Serialize};
-use surrealdb::types::{Datetime, RecordId as Thing};
-use surrealdb_types::SurrealValue;
-use surrealdb_types_derive::SurrealValue as SurrealValueMacro;
 
-/// Represents an Organization record from SurrealDB.
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema, SurrealValueMacro)]
+/// Represents an Organization record.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Organization {
-    /// The record ID (e.g. `organization:01J...`).
-    #[schema(value_type = String)]
-    pub id: Thing,
+    /// The record ID.
+    pub id: String,
     /// Organization name.
     pub name: String,
     /// Organization type (company, branch, warehouse).
@@ -19,8 +15,7 @@ pub struct Organization {
     /// Optional description.
     pub description: Option<String>,
     /// Parent organization for hierarchy.
-    #[schema(value_type = Option<String>)]
-    pub parent_id: Option<Thing>,
+    pub parent_id: Option<String>,
     /// Contact email.
     pub email: Option<String>,
     /// Contact phone.
@@ -48,12 +43,11 @@ pub struct Organization {
     /// Whether the organization is active.
     pub is_active: bool,
     /// Link to the owning user.
-    #[schema(value_type = Option<String>)]
-    pub owner_id: Option<Thing>,
+    pub owner_id: Option<String>,
     /// Creation timestamp.
     #[schema(value_type = String)]
-    pub created_at: Datetime,
+    pub created_at: chrono::DateTime<chrono::Utc>,
     /// Update timestamp.
     #[schema(value_type = String)]
-    pub updated_at: Datetime,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
 }

@@ -3,8 +3,6 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use super::record_id_to_string;
-
 /// Abbreviated category info embedded in product responses.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -211,15 +209,15 @@ impl ProductResponse {
         brand: Option<BrandSummary>,
     ) -> Self {
         Self {
-            id: record_id_to_string(&model.id),
+            id: model.id.clone(),
             name: model.name.clone(),
             description: model.description.clone(),
             sku: model.sku.clone(),
             barcode: model.barcode.clone(),
             base_price: model.base_price,
             cost_price: model.cost_price,
-            category_id: model.category_id.as_ref().map(record_id_to_string),
-            brand_id: model.brand_id.as_ref().map(record_id_to_string),
+            category_id: model.category_id.clone(),
+            brand_id: model.brand_id.clone(),
             image_url: model.image_url.clone(),
             weight: model.weight,
             dimensions: model.dimensions.clone(),
@@ -227,7 +225,7 @@ impl ProductResponse {
             min_stock_level: model.min_stock_level,
             is_featured: model.is_featured,
             tags: model.tags.clone(),
-            organization_id: record_id_to_string(&model.organization_id),
+            organization_id: model.organization_id.clone(),
             deleted_at: model.deleted_at.as_ref().map(|dt| dt.to_string()),
             created_at: model.created_at.to_string(),
             updated_at: model.updated_at.to_string(),

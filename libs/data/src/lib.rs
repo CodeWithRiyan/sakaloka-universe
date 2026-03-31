@@ -1,5 +1,5 @@
 // ============================================================
-// 🌌 Sakaloka-Universe — libs/data
+// Sakaloka-Universe — libs/data
 // Iron Curtain directives — mandatory on every lib.rs
 // ============================================================
 #![deny(clippy::all)]
@@ -12,19 +12,25 @@
 //!
 //! Database and messaging client abstractions for Sakaloka-Universe.
 //!
-//! ## Planets served
-//! - 🪐 **Jupiter** — SurrealDB graph/document database client
-//! - 🔵 **Uranus** — Qdrant vector search client
-//! - 🪐 **Saturn** — Eclipse Zenoh pub/sub messaging client
+//! ## Backends
+//! - **PostgreSQL** (default) — production database via SQLx
+//! - **SurrealDB** — legacy, behind `surrealdb-backend` feature flag
+//! - **Qdrant** — vector search, behind `qdrant` feature flag
+//! - **Zenoh** — pub/sub messaging, behind `zenoh` feature flag
 //!
 //! ## Rules
 //! - Always use the authenticated client — never embed raw credentials.
-//! - All SurrealDB schema is defined in `.surql` files under `db/migrations/`.
-//! - Tables use `SCHEMAFULL` — never create tables ad hoc.
-//! - All Zenoh event handlers must be idempotent.
+//! - Use parameterized queries — never interpolate user input into SQL.
+
+/// PostgreSQL client module (default database backend).
+pub mod postgres;
 
 #[cfg(feature = "qdrant")]
+/// Qdrant vector search client.
 pub mod qdrant;
+#[cfg(feature = "surrealdb-backend")]
+/// Legacy SurrealDB client module.
 pub mod surreal;
 #[cfg(feature = "zenoh")]
+/// Eclipse Zenoh pub/sub messaging client.
 pub mod zenoh;

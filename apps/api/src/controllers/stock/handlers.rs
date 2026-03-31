@@ -9,7 +9,6 @@ use crate::app::AppState;
 use crate::error::ApiError;
 use crate::helpers::error_map::db_err;
 use crate::views::{
-    record_id_to_string,
     stock::{AdjustStockRequest, StockHistoryResponse, StockResponse},
     ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
@@ -210,7 +209,7 @@ pub async fn adjust(
         )));
     }
 
-    let inv_id = record_id_to_string(&inventory_item.id);
+    let inv_id = inventory_item.id.clone();
 
     state
         .db

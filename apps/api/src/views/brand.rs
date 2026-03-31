@@ -3,8 +3,6 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use super::record_id_to_string;
-
 /// Full brand response DTO.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -66,15 +64,15 @@ impl BrandResponse {
     /// model into a response DTO.
     pub fn from_model(model: &sakaloka_core::models::brand::Brand) -> Self {
         Self {
-            id: record_id_to_string(&model.id),
+            id: model.id.clone(),
             name: model.name.clone(),
             slug: model.slug.clone(),
             description: model.description.clone(),
             logo: model.logo.clone(),
             website: model.website.clone(),
             is_active: model.is_active,
-            organization_id: record_id_to_string(&model.organization_id),
-            created_by: model.created_by.as_ref().map(record_id_to_string),
+            organization_id: model.organization_id.clone(),
+            created_by: model.created_by.clone(),
             created_at: model.created_at.to_string(),
             updated_at: model.updated_at.to_string(),
         }

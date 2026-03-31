@@ -10,8 +10,7 @@ use crate::error::ApiError;
 use crate::helpers::error_map::db_err;
 use crate::views::{
     order::{CreateOrderRequest, MenuResponse, OrderResponse, UpdateOrderRequest},
-    record_id_to_string, ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse,
-    PaginationParams,
+    ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
 use super::helpers::{generate_order_number, ResolvedOrderItem};
@@ -40,7 +39,7 @@ pub async fn menu(
     // Batch-fetch categories (avoids N+1 queries)
     let cat_ids: Vec<String> = items
         .iter()
-        .filter_map(|p| p.category_id.as_ref().map(record_id_to_string))
+        .filter_map(|p| p.category_id.clone())
         .collect::<std::collections::HashSet<_>>()
         .into_iter()
         .collect();
@@ -51,16 +50,16 @@ pub async fn menu(
         .await
         .unwrap_or_default()
         .into_iter()
-        .map(|c| (record_id_to_string(&c.id), c.name))
+        .map(|c| (c.id, c.name))
         .collect();
 
     let responses: Vec<MenuResponse> = items
         .iter()
         .map(|item| {
-            let cat_key = item.category_id.as_ref().map(record_id_to_string);
+            let cat_key = item.category_id.clone();
             let cat_name = cat_key.as_ref().and_then(|k| cat_map.get(k)).cloned();
             MenuResponse {
-                id: record_id_to_string(&item.id),
+                id: item.id.clone(),
                 name: item.name.clone(),
                 sku: item.sku.clone(),
                 base_price: item.base_price,
@@ -263,10 +262,7 @@ pub async fn create_order(
         .map_err(|e| db_err(e, "Failed to batch-fetch products for order"))?;
 
     let product_map: std::collections::HashMap<String, &sakaloka_core::models::product::Product> =
-        products
-            .iter()
-            .map(|p| (record_id_to_string(&p.id), p))
-            .collect();
+        products.iter().map(|p| (p.id.clone(), p)).collect();
 
     let mut subtotal: i64 = 0;
     let mut resolved_items: Vec<ResolvedOrderItem> = Vec::with_capacity(payload.items.len());
@@ -292,7 +288,7 @@ pub async fn create_order(
             .unwrap_or_else(|| product.name.clone());
 
         resolved_items.push(ResolvedOrderItem {
-            product_id: record_id_to_string(&product.id),
+            product_id: product.id.clone(),
             item_name,
             quantity: item_req.quantity,
             unit_price,
@@ -322,7 +318,7 @@ pub async fn create_order(
         .await
         .map_err(|e| db_err(e, "Failed to create order"))?;
 
-    let order_id = record_id_to_string(&order.id);
+    let order_id = order.id.clone();
 
     // Batch-insert all order items in a single round-trip
     let batch_items: Vec<(String, String, i32, i64, i64)> = resolved_items

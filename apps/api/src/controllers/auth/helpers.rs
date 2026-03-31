@@ -3,10 +3,7 @@
 use crate::app::AppState;
 use crate::error::ApiError;
 use crate::helpers::error_map::db_err;
-use crate::views::{
-    auth::{OrgSummary, RoleSummary, UserProfile},
-    record_id_to_string,
-};
+use crate::views::auth::{OrgSummary, RoleSummary, UserProfile};
 
 /// Issue an access token, generate a refresh token, and persist the session.
 ///
@@ -79,12 +76,12 @@ pub fn build_user_profile(
         email,
         full_name,
         organization: OrgSummary {
-            id: record_id_to_string(&org.id),
+            id: org.id.clone(),
             name: org.name.clone(),
             org_type: org.org_type.clone(),
         },
         role: RoleSummary {
-            id: record_id_to_string(&role.id),
+            id: role.id.clone(),
             name: role.name.clone(),
             permissions: role
                 .permissions

@@ -3,8 +3,6 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use super::record_id_to_string;
-
 /// Full category response DTO.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -68,16 +66,16 @@ impl CategoryResponse {
     /// model into a response DTO.
     pub fn from_model(model: &sakaloka_core::models::category::Category) -> Self {
         Self {
-            id: record_id_to_string(&model.id),
+            id: model.id.clone(),
             name: model.name.clone(),
             slug: model.slug.clone(),
             description: model.description.clone(),
-            parent_id: model.parent_id.as_ref().map(record_id_to_string),
+            parent_id: model.parent_id.clone(),
             image_url: model.image_url.clone(),
             sort_order: model.sort_order,
             is_active: model.is_active,
-            organization_id: record_id_to_string(&model.organization_id),
-            created_by: model.created_by.as_ref().map(record_id_to_string),
+            organization_id: model.organization_id.clone(),
+            created_by: model.created_by.clone(),
             created_at: model.created_at.to_string(),
             updated_at: model.updated_at.to_string(),
         }

@@ -30,15 +30,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Start SurrealDB
+      - name: Start PostgreSQL
         run: |
-          docker run -d --name surrealdb -p 58000:8000 \
-            surrealdb/surrealdb:latest \
-            start --user root --pass sakaloka-dev-password memory
-          until docker exec surrealdb /surreal is-ready --log none 2>/dev/null; do
+          docker run -d --name postgres -p 5432:5432 \
+            -e POSTGRES_USER=dev_user \
+            -e POSTGRES_PASSWORD=eE4W2heguc8SX7VHu3gs \
+            -e POSTGRES_DB=dev_db \
+            postgres:17-alpine
+          until docker exec postgres pg_isready -U dev_user -d dev_db 2>/dev/null; do
             sleep 2
           done
-          echo "SurrealDB is ready"
+          echo "PostgreSQL is ready"
 
       - name: Install system dependencies (Tauri / WebKitGTK)
         run: |
@@ -78,9 +80,7 @@ jobs:
         run: cargo test --workspace
         env:
           SAKALOKA_JWT_SECRET: "ci-test-secret-at-least-32-chars-long!"
-          SURREALDB_URL: "ws://127.0.0.1:58000"
-          SURREALDB_USER: "root"
-          SURREALDB_PASS: "sakaloka-dev-password"
+          DATABASE_URL: "postgres://dev_user:eE4W2heguc8SX7VHu3gs@127.0.0.1:5432/dev_db"
 
       # AC-03: 100% public API documentation
       - name: "cargo doc (deny missing_docs)"

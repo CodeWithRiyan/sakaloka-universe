@@ -2,8 +2,6 @@
 
 use crate::app::AppState;
 use crate::error::ApiError;
-use crate::views::record_id_to_string;
-
 /// Return the caller's organization ID, preferring the JWT claim and falling
 /// back to a DB lookup for tokens issued before `org_id` was embedded.
 ///
@@ -31,7 +29,5 @@ pub async fn resolve_caller_org(
 
     caller
         .organization_id
-        .as_ref()
-        .map(record_id_to_string)
         .ok_or_else(|| ApiError::BadRequest("User has no organization assigned".to_string()))
 }

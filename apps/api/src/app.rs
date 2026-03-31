@@ -13,8 +13,8 @@ use crate::middleware::auth_middleware;
 /// Shared application state injected into every handler.
 #[derive(Clone)]
 pub struct AppState {
-    /// SurrealDB client (Jupiter).
-    pub db: sakaloka_data::surreal::SurrealClient,
+    /// PostgreSQL client.
+    pub db: sakaloka_data::postgres::PgClient,
     /// JWT signing/verification keys.
     pub jwt_keys: Arc<sakaloka_secure::jwt::JwtKeys>,
 }
@@ -79,73 +79,15 @@ async fn health() -> &'static str {
     "ok"
 }
 
-/// Applies SurrealQL migrations from the `libs/data/surql/` directory.
-///
-/// At runtime the directory is resolved from the `MIGRATIONS_DIR` environment
-/// variable (set in Docker images). When the variable is absent the
-/// compile-time `CARGO_MANIFEST_DIR` path is used as a fallback so that
-/// `cargo run` during local development still works.
+/// Runs embedded SQLx migrations against PostgreSQL.
 ///
 /// # Errors
 ///
-/// Returns an error if any migration file cannot be read or executed.
-pub async fn run_migrations(db: &sakaloka_data::surreal::SurrealClient) -> anyhow::Result<()> {
-    fn legacy_schema_conflict(error: &sakaloka_data::surreal::SurrealError) -> bool {
-        let message = error.to_string().to_ascii_lowercase();
-        message.contains("already exists") || message.contains("already defined")
-    }
-
-    let surql_dir = match std::env::var("MIGRATIONS_DIR") {
-        Ok(dir) => std::path::PathBuf::from(dir)
-            .canonicalize()
-            .map_err(|e| anyhow::anyhow!("Invalid MIGRATIONS_DIR: {e}"))?,
-        Err(_) => std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("..")
-            .join("libs")
-            .join("data")
-            .join("surql"),
-    };
-
-    db.execute_raw("DEFINE TABLE IF NOT EXISTS schema_migration SCHEMALESS;")
+/// Returns an error if any migration fails.
+pub async fn run_migrations(db: &sakaloka_data::postgres::PgClient) -> anyhow::Result<()> {
+    db.run_migrations()
         .await
-        .map_err(|error| anyhow::anyhow!("failed to initialize migration store: {error}"))?;
-
-    let mut entries: Vec<_> = std::fs::read_dir(&surql_dir)?
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|ext| ext == "surql"))
-        .collect();
-
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
-        let path = entry.path();
-        let name = path.file_name().unwrap_or_default().to_string_lossy();
-        if db.migration_applied(&name).await.map_err(|error| {
-            anyhow::anyhow!("failed to check migration marker for {name}: {error}")
-        })? {
-            tracing::info!(file = %name, "skipping migration already applied");
-            continue;
-        }
-
-        let sql = std::fs::read_to_string(&path)?;
-        tracing::info!(file = %name, "applying migration");
-        match db.execute_raw(&sql).await {
-            Ok(()) => {}
-            Err(error) if legacy_schema_conflict(&error) => {
-                tracing::warn!(
-                    file = %name,
-                    error = %error,
-                    "migration conflicts with existing schema; marking as already applied"
-                );
-            }
-            Err(error) => return Err(error.into()),
-        }
-        db.mark_migration_applied(&name).await.map_err(|error| {
-            anyhow::anyhow!("failed to record migration marker for {name}: {error}")
-        })?;
-    }
-
+        .map_err(|e| anyhow::anyhow!("migration failed: {e}"))?;
     tracing::info!("all migrations applied");
     Ok(())
 }

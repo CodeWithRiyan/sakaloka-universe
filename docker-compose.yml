@@ -12,6 +12,11 @@ services:
   # 🌍 Earth — Axum REST API (apps/api)
   # External: 127.0.0.1:53000 → 3000
   # ─────────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────
+  # 🐘 PostgreSQL — primary relational database (external infra)
+  # Connect to: infra-dev-postgres (Docker network: net-dev)
+  # ─────────────────────────────────────────────────────────────
+
   sakaloka-api:
     build:
       context: .
@@ -21,14 +26,8 @@ services:
     environment:
       - RUST_LOG=info
       - SAKALOKA_JWT_SECRET=${SAKALOKA_JWT_SECRET}
-      - SURREALDB_URL=ws://surrealdb:8000
-      - SURREALDB_USER=${SURREALDB_USER:-root}
-      - SURREALDB_PASS=${SURREALDB_PASS:-sakaloka-dev-password}
-    depends_on:
-      surrealdb:
-        condition: service_healthy
+      - DATABASE_URL=postgres://dev_user:eE4W2heguc8SX7VHu3gs@infra-dev-postgres:5432/sakaloka_db
     healthcheck:
-      # Earth's Dockerfile is debian-based and has curl installed
       test: ["CMD", "curl", "-sf", "http://localhost:3000/health"]
       interval: 10s
       timeout: 5s
@@ -37,6 +36,7 @@ services:
     restart: unless-stopped
     networks:
       - sakaloka-net
+      - net-dev
 
   # ─────────────────────────────────────────────────────────────
   # 🔴 Mars — Ockam secure channel broker (apps/ockam)
@@ -153,3 +153,5 @@ networks:
   sakaloka-net:
     driver: bridge
     # Internal network — no external routing
+  net-dev:
+    external: true

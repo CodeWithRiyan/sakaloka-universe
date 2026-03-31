@@ -13,7 +13,7 @@ use crate::views::{
         LoginRequest, LoginResponse, OrgSummary, RefreshRequest, RegisterRequest, RoleSummary,
         UserProfile,
     },
-    record_id_to_string, ApiResponse,
+    ApiResponse,
 };
 
 use super::helpers::{build_user_profile, issue_tokens_and_session};
@@ -76,10 +76,10 @@ pub async fn login(
     }
 
     // 3. Load organization and role
-    let user_id_str = record_id_to_string(&user.id);
+    let user_id_str = user.id.clone();
 
     let org_id = match user.organization_id.as_ref() {
-        Some(id) => record_id_to_string(id),
+        Some(id) => id.clone(),
         None => {
             return Ok(Json(ApiResponse::error(
                 "incomplete_profile",
@@ -88,7 +88,7 @@ pub async fn login(
         }
     };
     let role_id = match user.role_id.as_ref() {
-        Some(id) => record_id_to_string(id),
+        Some(id) => id.clone(),
         None => {
             return Ok(Json(ApiResponse::error(
                 "incomplete_profile",
@@ -179,7 +179,7 @@ pub async fn register(
     // 3. Create account entities (org → role → user → set owner)
     let (org_id_str, role, user_id_str) =
         create_account_entities(&state, &payload, &password_hash).await?;
-    let role_id_str = record_id_to_string(&role.id);
+    let role_id_str = role.id.clone();
 
     // 4. Issue tokens + persist session — use the persisted admin permissions that were
     //    persisted on the newly-created DB role so the token always reflects
@@ -241,7 +241,7 @@ async fn create_account_entities(
         .create_organization(&payload.organization_name, "company", None)
         .await
         .map_err(|e| db_err(e, "Failed to create organization"))?;
-    let org_id = record_id_to_string(&org.id);
+    let org_id = org.id.clone();
 
     // Step 2: Create role (cleanup org on failure)
     let role = match state
@@ -256,7 +256,7 @@ async fn create_account_entities(
             return Err(ApiError::Internal(anyhow::anyhow!("Failed to create role")));
         }
     };
-    let role_id = record_id_to_string(&role.id);
+    let role_id = role.id.clone();
 
     // Step 3: Create user (cleanup role + org on failure)
     let user = match state
@@ -278,7 +278,7 @@ async fn create_account_entities(
             return Err(ApiError::Internal(anyhow::anyhow!("Failed to create user")));
         }
     };
-    let user_id = record_id_to_string(&user.id);
+    let user_id = user.id.clone();
 
     // Step 4: Link owner (cleanup user + role + org on failure)
     if let Err(e) = state.db.update_organization_owner(&org_id, &user_id).await {
@@ -328,17 +328,15 @@ pub async fn profile(
         None => return Ok(Json(ApiResponse::not_found("User"))),
     };
 
-    let user_id_str = record_id_to_string(&user.id);
+    let user_id_str = user.id.clone();
 
     let org_id = user
         .organization_id
-        .as_ref()
-        .map(record_id_to_string)
+        .clone()
         .ok_or_else(|| ApiError::BadRequest("User has no organization assigned".to_string()))?;
     let role_id = user
         .role_id
-        .as_ref()
-        .map(record_id_to_string)
+        .clone()
         .ok_or_else(|| ApiError::BadRequest("User has no role assigned".to_string()))?;
 
     let (org_result, role_result) = tokio::join!(

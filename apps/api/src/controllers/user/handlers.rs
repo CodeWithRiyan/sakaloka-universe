@@ -158,7 +158,7 @@ pub async fn update(
             .await
             .map_err(|_| ApiError::Internal(anyhow::anyhow!("DB error")))?;
         if let Some(ref dup_user) = dup {
-            let dup_id = crate::views::record_id_to_string(&dup_user.id);
+            let dup_id = dup_user.id.clone();
             if dup_id != id {
                 return Ok(Json(ApiResponse::error(
                     "email_taken",

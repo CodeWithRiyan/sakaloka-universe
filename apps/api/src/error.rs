@@ -45,8 +45,8 @@ impl From<anyhow::Error> for ApiError {
     }
 }
 
-impl From<sakaloka_data::surreal::SurrealError> for ApiError {
-    fn from(err: sakaloka_data::surreal::SurrealError) -> Self {
+impl From<sakaloka_data::postgres::PgError> for ApiError {
+    fn from(err: sakaloka_data::postgres::PgError) -> Self {
         Self::Internal(anyhow::anyhow!("{}", err))
     }
 }

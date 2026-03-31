@@ -52,10 +52,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY --from=builder /app/target/release/sakaloka-api .
-COPY libs/data/surql/ /app/migrations/
 
 ENV RUST_LOG=info
-ENV MIGRATIONS_DIR=/app/migrations
 
 EXPOSE 3000
 

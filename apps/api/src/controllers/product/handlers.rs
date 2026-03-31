@@ -13,8 +13,7 @@ use crate::views::{
     product::{
         BrandSummary, CategorySummary, CreateProductRequest, ProductResponse, UpdateProductRequest,
     },
-    record_id_to_string, ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse,
-    PaginationParams,
+    ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
 /// `GET /api/products` — list products with pagination, search, and sorting.
@@ -45,13 +44,13 @@ pub async fn list(
     // Batch-fetch related categories and brands (avoids N+1 queries)
     let cat_ids: Vec<String> = items
         .iter()
-        .filter_map(|p| p.category_id.as_ref().map(record_id_to_string))
+        .filter_map(|p| p.category_id.clone())
         .collect::<std::collections::HashSet<_>>()
         .into_iter()
         .collect();
     let brand_ids: Vec<String> = items
         .iter()
-        .filter_map(|p| p.brand_id.as_ref().map(record_id_to_string))
+        .filter_map(|p| p.brand_id.clone())
         .collect::<std::collections::HashSet<_>>()
         .into_iter()
         .collect();
@@ -65,29 +64,27 @@ pub async fn list(
     let cat_map: std::collections::HashMap<String, String> = cat_result
         .unwrap_or_default()
         .into_iter()
-        .map(|c| (record_id_to_string(&c.id), c.name))
+        .map(|c| (c.id, c.name))
         .collect();
 
     let brand_map: std::collections::HashMap<String, String> = brand_result
         .unwrap_or_default()
         .into_iter()
-        .map(|b| (record_id_to_string(&b.id), b.name))
+        .map(|b| (b.id, b.name))
         .collect();
 
     let responses: Vec<ProductResponse> = items
         .iter()
         .map(|item| {
             let cat = item.category_id.as_ref().and_then(|cid| {
-                let key = record_id_to_string(cid);
-                cat_map.get(&key).map(|name| CategorySummary {
-                    id: key,
+                cat_map.get(cid).map(|name| CategorySummary {
+                    id: cid.clone(),
                     name: name.clone(),
                 })
             });
             let brand = item.brand_id.as_ref().and_then(|bid| {
-                let key = record_id_to_string(bid);
-                brand_map.get(&key).map(|name| BrandSummary {
-                    id: key,
+                brand_map.get(bid).map(|name| BrandSummary {
+                    id: bid.clone(),
                     name: name.clone(),
                 })
             });
@@ -122,8 +119,8 @@ pub async fn show(
         None => return Ok(Json(ApiResponse::not_found("Product"))),
     };
 
-    let cat_key = product.category_id.as_ref().map(record_id_to_string);
-    let brand_key = product.brand_id.as_ref().map(record_id_to_string);
+    let cat_key = product.category_id.clone();
+    let brand_key = product.brand_id.clone();
 
     let (cat_result, brand_result) = tokio::join!(
         async {
@@ -142,7 +139,7 @@ pub async fn show(
 
     let cat = match cat_result {
         Ok(Some(c)) => Some(CategorySummary {
-            id: record_id_to_string(&c.id),
+            id: c.id,
             name: c.name,
         }),
         Ok(None) => None,
@@ -153,7 +150,7 @@ pub async fn show(
     };
     let brand = match brand_result {
         Ok(Some(b)) => Some(BrandSummary {
-            id: record_id_to_string(&b.id),
+            id: b.id,
             name: b.name,
         }),
         Ok(None) => None,

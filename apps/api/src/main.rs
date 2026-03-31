@@ -7,23 +7,15 @@ async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
     tracing_subscriber::fmt::init();
 
-    let db_url =
-        std::env::var("SURREALDB_URL").unwrap_or_else(|_| "ws://127.0.0.1:58000".to_string());
-    let db_user = std::env::var("SURREALDB_USER").map_err(|_| {
+    let database_url = std::env::var("DATABASE_URL").map_err(|_| {
         anyhow::anyhow!(
-            "SURREALDB_USER must be set — use .env file locally or set in Docker environment"
-        )
-    })?;
-    let db_pass = std::env::var("SURREALDB_PASS").map_err(|_| {
-        anyhow::anyhow!(
-            "SURREALDB_PASS must be set — use .env file locally or set in Docker environment"
+            "DATABASE_URL must be set — use .env file locally or set in Docker environment"
         )
     })?;
 
-    tracing::info!("connecting to SurrealDB at {}", db_url);
-    let db = sakaloka_data::surreal::SurrealClient::connect(&db_url).await?;
-    db.signin(&db_user, &db_pass).await?;
-    tracing::info!("SurrealDB connected");
+    tracing::info!("connecting to PostgreSQL");
+    let db = sakaloka_data::postgres::PgClient::connect(&database_url).await?;
+    tracing::info!("PostgreSQL connected");
 
     app::run_migrations(&db).await?;
 

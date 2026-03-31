@@ -3,8 +3,6 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use super::record_id_to_string;
-
 /// Full user response DTO (password hash is never serialized).
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -66,11 +64,11 @@ impl UserResponse {
     /// into a response DTO. The password hash is intentionally excluded.
     pub fn from_model(model: &sakaloka_core::models::user::User) -> Self {
         Self {
-            id: record_id_to_string(&model.id),
+            id: model.id.clone(),
             email: model.email.clone(),
             full_name: model.full_name.clone(),
-            organization_id: model.organization_id.as_ref().map(record_id_to_string),
-            role_id: model.role_id.as_ref().map(record_id_to_string),
+            organization_id: model.organization_id.clone(),
+            role_id: model.role_id.clone(),
             is_active: model.is_active,
             last_login_at: model.last_login_at.as_ref().map(|dt| dt.to_string()),
             created_at: model.created_at.to_string(),

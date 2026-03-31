@@ -1,22 +1,16 @@
 use serde::{Deserialize, Serialize};
-use surrealdb::types::{Datetime, RecordId as Thing};
-use surrealdb_types::SurrealValue;
-use surrealdb_types_derive::SurrealValue as SurrealValueMacro;
 
-/// Represents an Order record from SurrealDB.
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema, SurrealValueMacro)]
+/// Represents an Order record.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Order {
-    /// The record ID (e.g. `order:01J...`).
-    #[schema(value_type = String)]
-    pub id: Thing,
+    /// The record ID.
+    pub id: String,
     /// Unique order number (e.g. `ORD-20260101-0001`).
     pub order_number: String,
     /// Optional link to a registered customer.
-    #[schema(value_type = Option<String>)]
-    pub customer_id: Option<Thing>,
+    pub customer_id: Option<String>,
     /// Owning organization.
-    #[schema(value_type = String)]
-    pub organization_id: Thing,
+    pub organization_id: String,
     /// Order lifecycle status.
     pub status: String,
     /// Order type (dine_in, takeaway, delivery).
@@ -43,31 +37,26 @@ pub struct Order {
     /// Walk-in customer name.
     pub customer_name: Option<String>,
     /// User who created this order.
-    #[schema(value_type = Option<String>)]
-    pub created_by: Option<Thing>,
+    pub created_by: Option<String>,
     /// User who last updated this order.
-    #[schema(value_type = Option<String>)]
-    pub updated_by: Option<Thing>,
+    pub updated_by: Option<String>,
     /// Creation timestamp.
     #[schema(value_type = String)]
-    pub created_at: Datetime,
+    pub created_at: chrono::DateTime<chrono::Utc>,
     /// Update timestamp.
     #[schema(value_type = String)]
-    pub updated_at: Datetime,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-/// Represents an OrderItem record from SurrealDB.
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema, SurrealValueMacro)]
+/// Represents an OrderItem record.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct OrderItem {
     /// The record ID.
-    #[schema(value_type = String)]
-    pub id: Thing,
+    pub id: String,
     /// Link to the parent order.
-    #[schema(value_type = String)]
-    pub order_id: Thing,
+    pub order_id: String,
     /// Link to the product.
-    #[schema(value_type = String)]
-    pub product_id: Thing,
+    pub product_id: String,
     /// Snapshot of the product name at time of order.
     pub item_name: String,
     /// Quantity ordered.
@@ -82,5 +71,5 @@ pub struct OrderItem {
     pub notes: Option<String>,
     /// Creation timestamp.
     #[schema(value_type = String)]
-    pub created_at: Datetime,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }

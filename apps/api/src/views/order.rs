@@ -3,8 +3,6 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use super::record_id_to_string;
-
 /// Full order response DTO.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -159,10 +157,10 @@ impl OrderResponse {
     /// into a response DTO (without items).
     pub fn from_model(model: &sakaloka_core::models::order::Order) -> Self {
         Self {
-            id: record_id_to_string(&model.id),
+            id: model.id.clone(),
             order_number: model.order_number.clone(),
-            customer_id: model.customer_id.as_ref().map(record_id_to_string),
-            organization_id: record_id_to_string(&model.organization_id),
+            customer_id: model.customer_id.clone(),
+            organization_id: model.organization_id.clone(),
             status: model.status.clone(),
             order_type: model.order_type.clone(),
             subtotal: model.subtotal,
@@ -175,8 +173,8 @@ impl OrderResponse {
             notes: model.notes.clone(),
             table_number: model.table_number.clone(),
             customer_name: model.customer_name.clone(),
-            created_by: model.created_by.as_ref().map(record_id_to_string),
-            updated_by: model.updated_by.as_ref().map(record_id_to_string),
+            created_by: model.created_by.clone(),
+            updated_by: model.updated_by.clone(),
             created_at: model.created_at.to_string(),
             updated_at: model.updated_at.to_string(),
             items: None,
@@ -203,9 +201,9 @@ impl OrderItemResponse {
     /// response DTO.
     pub fn from_model(model: &sakaloka_core::models::order::OrderItem) -> Self {
         Self {
-            id: record_id_to_string(&model.id),
-            order_id: record_id_to_string(&model.order_id),
-            product_id: record_id_to_string(&model.product_id),
+            id: model.id.clone(),
+            order_id: model.order_id.clone(),
+            product_id: model.product_id.clone(),
             item_name: model.item_name.clone(),
             quantity: model.quantity,
             unit_price: model.unit_price,

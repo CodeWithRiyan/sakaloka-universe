@@ -3,8 +3,6 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use super::record_id_to_string;
-
 /// Full stock (inventory item) response DTO.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -83,9 +81,9 @@ impl StockResponse {
     /// model into a response DTO.
     pub fn from_model(model: &sakaloka_core::models::inventory::InventoryItem) -> Self {
         Self {
-            id: record_id_to_string(&model.id),
-            product_id: record_id_to_string(&model.product_id),
-            organization_id: record_id_to_string(&model.organization_id),
+            id: model.id.clone(),
+            product_id: model.product_id.clone(),
+            organization_id: model.organization_id.clone(),
             sku: model.sku.clone(),
             location: model.location.clone(),
             quantity_on_hand: model.quantity_on_hand,
@@ -106,14 +104,14 @@ impl StockHistoryResponse {
     /// model into a response DTO.
     pub fn from_model(model: &sakaloka_core::models::inventory::StockMovement) -> Self {
         Self {
-            id: record_id_to_string(&model.id),
-            inventory_item_id: record_id_to_string(&model.inventory_item_id),
+            id: model.id.clone(),
+            inventory_item_id: model.inventory_item_id.clone(),
             movement_type: model.movement_type.clone(),
             quantity: model.quantity,
             reference_type: model.reference_type.clone(),
             reference_id: model.reference_id.clone(),
             notes: model.notes.clone(),
-            created_by: model.created_by.as_ref().map(record_id_to_string),
+            created_by: model.created_by.clone(),
             created_at: model.created_at.to_string(),
         }
     }

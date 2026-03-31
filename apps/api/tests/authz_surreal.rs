@@ -6,7 +6,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use sakaloka_api::app::{self, AppState};
-use sakaloka_data::surreal::SurrealClient;
+use sakaloka_data::postgres::PgClient;
 use sakaloka_secure::{argon2, jwt::JwtKeys, newtypes::Password};
 use serde_json::{json, Value};
 use tower::util::ServiceExt;
@@ -33,72 +33,22 @@ fn load_env_defaults() {
     if std::env::var("SAKALOKA_JWT_SECRET").is_err() {
         std::env::set_var("SAKALOKA_JWT_SECRET", "test-secret-at-least-32-chars-long!");
     }
-    if std::env::var("SURREALDB_URL").is_err() {
-        std::env::set_var("SURREALDB_URL", "ws://127.0.0.1:58000");
+    if std::env::var("DATABASE_URL").is_err() {
+        std::env::set_var(
+            "DATABASE_URL",
+            "postgres://dev_user:eE4W2heguc8SX7VHu3gs@127.0.0.1:55432/sakaloka_dev",
+        );
     }
-    if std::env::var("SURREALDB_USER").is_err() {
-        std::env::set_var("SURREALDB_USER", "root");
-    }
-    if std::env::var("SURREALDB_PASS").is_err() {
-        std::env::set_var("SURREALDB_PASS", "sakaloka-dev-password");
-    }
-}
-
-fn surreal_password_candidates() -> Vec<String> {
-    let mut candidates = Vec::new();
-
-    for password in [
-        std::env::var("SURREALDB_PASS").ok(),
-        Some("sakaloka-dev-password".to_string()),
-        Some("sakaloka-dev".to_string()),
-        Some("root".to_string()),
-    ]
-    .into_iter()
-    .flatten()
-    {
-        if !candidates.iter().any(|existing| existing == &password) {
-            candidates.push(password);
-        }
-    }
-
-    candidates
 }
 
 async fn build_state() -> Result<AppState> {
     load_env_defaults();
 
-    let db_url = std::env::var("SURREALDB_URL")?;
-    let db_user = std::env::var("SURREALDB_USER")?;
-    let db_passwords = surreal_password_candidates();
+    let database_url = std::env::var("DATABASE_URL")?;
 
-    let db = SurrealClient::connect(&db_url)
+    let db = PgClient::connect(&database_url)
         .await
-        .map_err(|error| anyhow!("failed to connect surrealdb for tests: {error}"))?;
-
-    let mut sign_in_error = None;
-    let mut signed_in = false;
-    for password in &db_passwords {
-        match db.signin(&db_user, password).await {
-            Ok(()) => {
-                signed_in = true;
-                break;
-            }
-            Err(error) => {
-                sign_in_error = Some(error);
-            }
-        }
-    }
-
-    if !signed_in {
-        let last_error = match sign_in_error {
-            Some(error) => error.to_string(),
-            None => "no credentials attempted".to_string(),
-        };
-        return Err(anyhow!(
-            "failed to sign in surrealdb for tests with user `{db_user}` at `{db_url}`; tried passwords {:?}; last error: {last_error}. If your local container predates the repo credential standardization, restart it with `make infra-down && make infra-up`.",
-            db_passwords
-        ));
-    }
+        .map_err(|error| anyhow!("failed to connect PostgreSQL for tests: {error}"))?;
 
     app::run_migrations(&db).await?;
 
@@ -165,7 +115,7 @@ async fn seed_limited_user(state: &AppState) -> Result<(String, String)> {
         .create_organization(&unique("limited-org"), "company", None)
         .await
         .map_err(|error| anyhow!("failed to create organization for test user: {error}"))?;
-    let org_id = sakaloka_api::views::record_id_to_string(&org.id);
+    let org_id = org.id.clone();
 
     let role = state
         .db
@@ -177,7 +127,7 @@ async fn seed_limited_user(state: &AppState) -> Result<(String, String)> {
         )
         .await
         .map_err(|error| anyhow!("failed to create limited role: {error}"))?;
-    let role_id = sakaloka_api::views::record_id_to_string(&role.id);
+    let role_id = role.id.clone();
 
     let password = "Sakaloka123!";
     let password_hash = argon2::hash_password(&Password::new(password)?)

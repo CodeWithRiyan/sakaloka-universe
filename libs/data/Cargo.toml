@@ -2,11 +2,12 @@
 name = "sakaloka-data"
 version = "0.1.0"
 edition = "2021"
-description = "Sakaloka-Universe — SurrealDB client (Qdrant/Zenoh behind feature flags)"
+description = "Sakaloka-Universe — PostgreSQL client (SurrealDB/Qdrant/Zenoh behind feature flags)"
 license = "MIT"
 
 [features]
 default = []
+surrealdb-backend = ["dep:surrealdb", "dep:surrealdb-types", "dep:surrealdb-types-derive"]
 qdrant = ["dep:qdrant-client"]
 zenoh  = ["dep:zenoh"]
 
@@ -19,8 +20,16 @@ thiserror       = { workspace = true }
 tokio           = { workspace = true }
 chrono          = { workspace = true }
 tracing         = { workspace = true }
-surrealdb       = { workspace = true }
-surrealdb-types = { workspace = true }
-surrealdb-types-derive = { workspace = true }
+uuid            = { workspace = true }
+
+# PostgreSQL (default)
+sqlx            = { workspace = true }
+
+# Legacy SurrealDB (feature-gated)
+surrealdb       = { workspace = true, optional = true }
+surrealdb-types = { workspace = true, optional = true }
+surrealdb-types-derive = { workspace = true, optional = true }
+
+# Optional services
 qdrant-client   = { workspace = true, optional = true }
 zenoh           = { workspace = true, optional = true }

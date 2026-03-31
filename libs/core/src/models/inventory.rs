@@ -1,20 +1,14 @@
 use serde::{Deserialize, Serialize};
-use surrealdb::types::{Datetime, RecordId as Thing};
-use surrealdb_types::SurrealValue;
-use surrealdb_types_derive::SurrealValue as SurrealValueMacro;
 
-/// Represents an InventoryItem record from SurrealDB.
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema, SurrealValueMacro)]
+/// Represents an InventoryItem record.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct InventoryItem {
     /// The record ID.
-    #[schema(value_type = String)]
-    pub id: Thing,
+    pub id: String,
     /// Link to the product.
-    #[schema(value_type = String)]
-    pub product_id: Thing,
+    pub product_id: String,
     /// Owning organization.
-    #[schema(value_type = String)]
-    pub organization_id: Thing,
+    pub organization_id: String,
     /// Optional SKU override at inventory level.
     pub sku: Option<String>,
     /// Storage location identifier.
@@ -33,21 +27,19 @@ pub struct InventoryItem {
     pub reorder_point: Option<i32>,
     /// Creation timestamp.
     #[schema(value_type = String)]
-    pub created_at: Datetime,
+    pub created_at: chrono::DateTime<chrono::Utc>,
     /// Update timestamp.
     #[schema(value_type = String)]
-    pub updated_at: Datetime,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-/// Represents a StockMovement record from SurrealDB.
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema, SurrealValueMacro)]
+/// Represents a StockMovement record.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct StockMovement {
     /// The record ID.
-    #[schema(value_type = String)]
-    pub id: Thing,
+    pub id: String,
     /// Link to the inventory item.
-    #[schema(value_type = String)]
-    pub inventory_item_id: Thing,
+    pub inventory_item_id: String,
     /// Type of movement (purchase, sale, adjustment, etc.).
     pub movement_type: String,
     /// Quantity moved.
@@ -59,9 +51,8 @@ pub struct StockMovement {
     /// Optional notes.
     pub notes: Option<String>,
     /// User who performed this movement.
-    #[schema(value_type = Option<String>)]
-    pub created_by: Option<Thing>,
+    pub created_by: Option<String>,
     /// Creation timestamp.
     #[schema(value_type = String)]
-    pub created_at: Datetime,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
