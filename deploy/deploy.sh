@@ -10,6 +10,8 @@ set -euo pipefail
 #   ./deploy.sh <env> down     # Stop environment
 #   ./deploy.sh <env> logs     # Tail logs
 #   ./deploy.sh <env> ps       # Show running containers
+#
+# CD: SSH retry logic added (2026-04-01)
 # =============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
