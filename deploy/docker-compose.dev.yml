@@ -13,12 +13,6 @@ services:
     networks:
       - net-dev
 
-  # External PostgreSQL — existing container on the VPS.
-  # Declared here so compose connects it to net-dev on every deploy,
-  # preventing "orphan container" warnings and network isolation issues.
-  infra-dev-postgres:
-    external: true
-
   sakaloka-surrealdb:
     image: surrealdb/surrealdb:v3.0.4
     container_name: sakaloka-dev-surrealdb

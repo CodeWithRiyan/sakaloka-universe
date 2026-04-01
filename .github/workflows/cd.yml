@@ -476,9 +476,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_SSH_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          connection_timeout: 30s
-          retry: 3
-          retry_delay: 10
+          command_timeout: 10m
           script: |
             set -euo pipefail
             ENV="${{ needs.resolve-env.outputs.env_name }}"
@@ -507,9 +505,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_SSH_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          connection_timeout: 30s
-          retry: 3
-          retry_delay: 10
+          command_timeout: 10m
           envs: GHCR_TOKEN,GHCR_USER,SAKALOKA_ENV,SAKALOKA_JWT_SECRET,DATABASE_URL
           script: |
             set -euo pipefail
@@ -591,9 +587,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_SSH_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          connection_timeout: 30s
-          retry: 3
-          retry_delay: 10
+          command_timeout: 10m
           envs: GHCR_TOKEN,GHCR_USER,SAKALOKA_ENV
           script: |
             set -euo pipefail
