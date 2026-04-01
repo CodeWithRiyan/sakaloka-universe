@@ -3,7 +3,7 @@
 import { getAuthData } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 import { useAppSelector } from "@/store/hooks"
-import { FaBoxes, FaChartPie } from "react-icons/fa"
+import { FaBoxes, FaChartPie, FaLayerGroup } from "react-icons/fa"
 import { IoFastFood } from "react-icons/io5"
 import { MdSpaceDashboard } from "react-icons/md"
 import { PiCashRegisterFill } from "react-icons/pi"
@@ -42,6 +42,12 @@ export default function Menubar() {
       icon: (
         <PiCashRegisterFill className="size-8 overflow-hidden md:size-12" />
       ),
+    },
+    {
+      label: "BOM",
+      active: "bom",
+      path: "/dashboard/bom",
+      icon: <FaLayerGroup className="size-8 overflow-hidden md:size-12" />,
     },
     {
       label: "laporan",

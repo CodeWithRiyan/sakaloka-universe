@@ -1,5 +1,7 @@
 //! Domain models shared across all Sakaloka planets.
 
+/// Bill of Materials entity models (Bom, BomItem, ProductionRun, Consumption).
+pub mod bom;
 /// Brand entity model.
 pub mod brand;
 /// Category entity model.

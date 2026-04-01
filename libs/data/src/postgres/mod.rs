@@ -4,6 +4,7 @@
 //! domain models from [`sakaloka_core::models`]. Uses runtime SQL queries
 //! (no compile-time checking) for CI friendliness.
 
+pub mod bom;
 mod brands;
 mod categories;
 mod inventory;

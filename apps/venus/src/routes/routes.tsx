@@ -18,6 +18,7 @@ const Dashboard = lazy(() => import("@/pages/dashboard"))
 const Product = lazy(() => import("@/pages/product"))
 const Stock = lazy(() => import("@/pages/stock"))
 const TransactionPage = lazy(() => import("@/pages/transaction"))
+const Bom = lazy(() => import("@/pages/bom"))
 
 // Private Settings
 const SettingsLayout = lazy(
@@ -62,6 +63,11 @@ export const PrivateRoute: RouteObject[] = [
         id: "transaction",
         path: "/dashboard/transaction",
         element: <TransactionPage />,
+      },
+      {
+        id: "bom",
+        path: "/dashboard/bom",
+        element: <Bom />,
       },
       { id: "dashboard-not-found", path: "*", element: <NotFound /> },
     ],

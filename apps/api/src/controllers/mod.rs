@@ -17,6 +17,7 @@
 //! This keeps the modular-monolith boundary predictable as the API grows.
 
 pub mod auth;
+pub mod bom;
 pub mod brand;
 pub mod category;
 pub mod organization;

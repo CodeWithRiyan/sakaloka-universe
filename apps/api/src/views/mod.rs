@@ -5,6 +5,7 @@
 //! `PageMeta`) live in this root module so every controller can reuse them.
 
 pub mod auth;
+pub mod bom;
 pub mod brand;
 pub mod category;
 pub mod order;

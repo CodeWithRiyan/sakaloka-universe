@@ -67,6 +67,22 @@ use utoipa::OpenApi;
         sakaloka_api::views::stock::StockResponse,
         sakaloka_api::views::stock::StockHistoryResponse,
         sakaloka_api::views::stock::AdjustStockRequest,
+        // BOM
+        sakaloka_api::views::bom::BomResponse,
+        sakaloka_api::views::bom::BomItemResponse,
+        sakaloka_api::views::bom::BomWithItemsResponse,
+        sakaloka_api::views::bom::ProductionRunResponse,
+        sakaloka_api::views::bom::ConsumptionResponse,
+        sakaloka_api::views::bom::ProductionRunWithConsumptionResponse,
+        sakaloka_api::views::bom::CreateBomRequest,
+        sakaloka_api::views::bom::UpdateBomRequest,
+        sakaloka_api::views::bom::CreateBomItemRequest,
+        sakaloka_api::views::bom::UpdateBomItemRequest,
+        sakaloka_api::views::bom::CreateProductionRunRequest,
+        sakaloka_api::views::bom::UpdateProductionRunRequest,
+        sakaloka_api::views::bom::CreateConsumptionRequest,
+        sakaloka_api::views::bom::BomCostBreakdownResponse,
+        sakaloka_api::views::bom::BomItemCostResponse,
     ))
 )]
 struct ApiDoc;

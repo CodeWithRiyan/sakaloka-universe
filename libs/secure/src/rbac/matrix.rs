@@ -50,6 +50,10 @@ pub fn allowed_scopes(role: &Role) -> Vec<Scope> {
             Scope::PosRead,
             Scope::PosCreate,
             Scope::PosUpdate,
+            Scope::BomRead,
+            Scope::BomCreate,
+            Scope::BomUpdate,
+            Scope::BomDelete,
             Scope::DbRead,
             Scope::DbWrite,
             Scope::DbAdmin,
@@ -73,6 +77,9 @@ pub fn allowed_scopes(role: &Role) -> Vec<Scope> {
             Scope::PosRead,
             Scope::PosCreate,
             Scope::PosUpdate,
+            Scope::BomRead,
+            Scope::BomCreate,
+            Scope::BomUpdate,
         ],
         Role::Viewer => vec![
             Scope::OrganizationRead,
@@ -81,6 +88,7 @@ pub fn allowed_scopes(role: &Role) -> Vec<Scope> {
             Scope::CategoryRead,
             Scope::StockRead,
             Scope::PosRead,
+            Scope::BomRead,
         ],
         Role::Service => vec![
             Scope::DbRead,

@@ -67,6 +67,7 @@ const CRUD_ACTIONS: &[PermissionActionCatalog] =
     &[ACTION_READ, ACTION_CREATE, ACTION_UPDATE, ACTION_DELETE];
 const STOCK_ACTIONS: &[PermissionActionCatalog] = &[ACTION_READ, ACTION_UPDATE];
 const POS_ACTIONS: &[PermissionActionCatalog] = &[ACTION_READ, ACTION_CREATE, ACTION_UPDATE];
+const BOM_ACTIONS: &[PermissionActionCatalog] = CRUD_ACTIONS;
 
 const BUSINESS_MODULES: &[PermissionModuleCatalog] = &[
     PermissionModuleCatalog {
@@ -116,6 +117,12 @@ const BUSINESS_MODULES: &[PermissionModuleCatalog] = &[
         label: "POS",
         description: "Operate POS menus and order workflows.",
         permissions: POS_ACTIONS,
+    },
+    PermissionModuleCatalog {
+        key: "bom",
+        label: "Bill of Materials",
+        description: "Manage BOM recipes and production runs.",
+        permissions: BOM_ACTIONS,
     },
 ];
 
@@ -210,6 +217,10 @@ const KNOWN_PERMISSIONS: &[(&str, &str, &str, PermissionKind)] = &[
     ("pos", "read", "pos:read", PermissionKind::Business),
     ("pos", "create", "pos:create", PermissionKind::Business),
     ("pos", "update", "pos:update", PermissionKind::Business),
+    ("bom", "read", "bom:read", PermissionKind::Business),
+    ("bom", "create", "bom:create", PermissionKind::Business),
+    ("bom", "update", "bom:update", PermissionKind::Business),
+    ("bom", "delete", "bom:delete", PermissionKind::Business),
     ("db", "read", "db:read", PermissionKind::Technical),
     ("db", "write", "db:write", PermissionKind::Technical),
     ("db", "admin", "db:admin", PermissionKind::Technical),

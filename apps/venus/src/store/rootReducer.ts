@@ -1,4 +1,5 @@
 import { combineReducers } from "@reduxjs/toolkit"
+import { bomApi } from "./bom/api"
 import { branchApi } from "./branch/api"
 import { brandApi } from "./brand/api"
 import { cartReducer } from "./cart/reducer"
@@ -15,6 +16,7 @@ export const rootReducer = combineReducers({
   utils: utilsReducer,
   cart: cartReducer,
   stock: stockReducer,
+  [bomApi.reducerPath]: bomApi.reducer,
   [branchApi.reducerPath]: branchApi.reducer,
   [brandApi.reducerPath]: brandApi.reducer,
   [userApi.reducerPath]: userApi.reducer,

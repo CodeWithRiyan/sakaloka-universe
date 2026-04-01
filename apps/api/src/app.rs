@@ -51,6 +51,7 @@ pub fn router(state: AppState) -> Router {
     // Protected routes — require valid JWT via auth_middleware.
     let protected_routes = Router::new()
         .merge(controllers::auth::protected_routes())
+        .merge(controllers::bom::routes())
         .merge(controllers::product::routes())
         .merge(controllers::brand::routes())
         .merge(controllers::category::routes())

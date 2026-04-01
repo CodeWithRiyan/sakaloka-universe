@@ -1,3 +1,44 @@
+warning: unused variable: `search`
+   --> libs/data/src/postgres/bom.rs:251:31
+    |
+251 |         let sql = if let Some(ref search) = filters.search {
+    |                               ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_search`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `org`
+   --> libs/data/src/postgres/bom.rs:252:25
+    |
+252 |             if let Some(ref org) = org_uuid {
+    |                         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_org`
+
+warning: unused variable: `prod`
+   --> libs/data/src/postgres/bom.rs:257:28
+    |
+257 |         } else if let Some(ref prod) = product_uuid {
+    |                            ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_prod`
+
+warning: unused variable: `org`
+   --> libs/data/src/postgres/bom.rs:258:25
+    |
+258 |             if let Some(ref org) = org_uuid {
+    |                         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_org`
+
+warning: unused variable: `status`
+   --> libs/data/src/postgres/bom.rs:263:28
+    |
+263 |         } else if let Some(ref status) = filters.status {
+    |                            ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_status`
+
+warning: unused variable: `org`
+   --> libs/data/src/postgres/bom.rs:264:25
+    |
+264 |             if let Some(ref org) = org_uuid {
+    |                         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_org`
+
+warning: `sakaloka-data` (lib) generated 6 warnings (run `cargo fix --lib -p sakaloka-data` to apply 6 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.51s
+     Running `target/debug/openapi`
 {
   "openapi": "3.1.0",
   "info": {

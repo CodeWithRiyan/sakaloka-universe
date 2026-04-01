@@ -104,6 +104,14 @@ pub enum Scope {
     PosCreate,
     /// Update POS orders.
     PosUpdate,
+    /// Read BOM records.
+    BomRead,
+    /// Create BOM records.
+    BomCreate,
+    /// Update BOM records.
+    BomUpdate,
+    /// Delete BOM records.
+    BomDelete,
     /// Read from the database (service only).
     DbRead,
     /// Write to the database (service only).
@@ -149,6 +157,10 @@ impl fmt::Display for Scope {
             Scope::PosRead => "pos:read",
             Scope::PosCreate => "pos:create",
             Scope::PosUpdate => "pos:update",
+            Scope::BomRead => "bom:read",
+            Scope::BomCreate => "bom:create",
+            Scope::BomUpdate => "bom:update",
+            Scope::BomDelete => "bom:delete",
             Scope::DbRead => "db:read",
             Scope::DbWrite => "db:write",
             Scope::DbAdmin => "db:admin",

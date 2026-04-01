@@ -23,6 +23,124 @@ export interface components {
             /** @description Optional reference string. */
             reference?: string | null;
         };
+        /** @description Cost breakdown response for a BOM. */
+        BomCostBreakdownResponse: {
+            /** @description BOM ID. */
+            bomId: string;
+            /** @description Item cost details. */
+            items: components["schemas"]["BomItemCostResponse"][];
+            /**
+             * Format: int64
+             * @description Total cost.
+             */
+            totalCost: number;
+        };
+        /** @description Item cost details in a BOM cost breakdown. */
+        BomItemCostResponse: {
+            /** @description Component product ID. */
+            componentProductId: string;
+            /**
+             * Format: int64
+             * @description Line cost.
+             */
+            lineCost: number;
+            /**
+             * Format: double
+             * @description Quantity.
+             */
+            quantity: number;
+            /** @description Unit of measure. */
+            unit: string;
+            /**
+             * Format: int64
+             * @description Unit cost.
+             */
+            unitCost: number;
+            /**
+             * Format: double
+             * @description Waste percentage.
+             */
+            wastePercent: number;
+        };
+        /** @description BOM item response. */
+        BomItemResponse: {
+            /** @description Parent BOM ID. */
+            bomId: string;
+            /** @description Component product ID. */
+            componentProductId: string;
+            /** @description Creation timestamp. */
+            createdAt: string;
+            /** @description Unique identifier. */
+            id: string;
+            /**
+             * Format: int64
+             * @description Line cost (qty × unit_cost).
+             */
+            lineCost?: number | null;
+            /** @description Optional notes. */
+            notes?: string | null;
+            /**
+             * Format: double
+             * @description Quantity needed.
+             */
+            quantity: number;
+            /** @description Unit of measure. */
+            unit: string;
+            /**
+             * Format: int64
+             * @description Unit cost snapshot.
+             */
+            unitCost?: number | null;
+            /** @description Last update timestamp. */
+            updatedAt: string;
+            /**
+             * Format: double
+             * @description Waste percentage.
+             */
+            wastePercent: number;
+            /**
+             * Format: double
+             * @description Yield percentage.
+             */
+            yieldPercent: number;
+        };
+        /** @description BOM response for GET endpoints. */
+        BomResponse: {
+            /** @description Creation timestamp. */
+            createdAt: string;
+            /** @description User who created this BOM. */
+            createdBy?: string | null;
+            /** @description Effective from date. */
+            effectiveFrom?: string | null;
+            /** @description Effective to date. */
+            effectiveTo?: string | null;
+            /** @description Unique identifier. */
+            id: string;
+            /** @description Name of the BOM. */
+            name: string;
+            /** @description Optional notes. */
+            notes?: string | null;
+            /** @description Organization ID. */
+            organizationId: string;
+            /** @description Product ID this BOM belongs to. */
+            productId: string;
+            /** @description Status (draft, active, archived). */
+            status: string;
+            /**
+             * Format: int64
+             * @description Total cost in smallest currency unit.
+             */
+            totalCost?: number | null;
+            /** @description Last update timestamp. */
+            updatedAt: string;
+            /** @description Version string. */
+            version: string;
+        };
+        /** @description BOM with its items combined. */
+        BomWithItemsResponse: components["schemas"]["BomResponse"] & {
+            /** @description List of BOM items. */
+            items: components["schemas"]["BomItemResponse"][];
+        };
         /** @description Full brand response DTO. */
         BrandResponse: {
             /** @description Record creation timestamp. */
@@ -92,6 +210,75 @@ export interface components {
             /** @description Category name. */
             name: string;
         };
+        /** @description Consumption record response. */
+        ConsumptionResponse: {
+            /**
+             * Format: double
+             * @description Actual quantity consumed.
+             */
+            actualQuantity: number;
+            /** @description Component product ID. */
+            componentProductId: string;
+            /** @description Creation timestamp. */
+            createdAt: string;
+            /** @description Unique identifier. */
+            id: string;
+            /**
+             * Format: double
+             * @description Planned quantity.
+             */
+            plannedQuantity: number;
+            /** @description Production run ID. */
+            productionRunId: string;
+            /** @description Unit of measure. */
+            unit: string;
+            /**
+             * Format: double
+             * @description Waste quantity.
+             */
+            wasteQuantity: number;
+        };
+        /** @description Request to create a BOM item. */
+        CreateBomItemRequest: {
+            /** @description Component product ID. */
+            componentProductId: string;
+            /** @description Optional notes. */
+            notes?: string | null;
+            /**
+             * Format: double
+             * @description Quantity needed.
+             */
+            quantity: number;
+            /** @description Unit of measure. */
+            unit: string;
+            /**
+             * Format: double
+             * @description Waste percentage (optional, defaults to 0).
+             */
+            wastePercent?: number | null;
+            /**
+             * Format: double
+             * @description Yield percentage (optional, defaults to 100).
+             */
+            yieldPercent?: number | null;
+        };
+        /** @description Request to create a BOM. */
+        CreateBomRequest: {
+            /** @description Effective from date (ISO 8601). */
+            effectiveFrom?: string | null;
+            /** @description Effective to date (ISO 8601). */
+            effectiveTo?: string | null;
+            /** @description Name of the BOM. */
+            name: string;
+            /** @description Optional notes. */
+            notes?: string | null;
+            /** @description Product ID this BOM belongs to. */
+            productId: string;
+            /** @description Status (optional, defaults to "draft"). */
+            status?: string | null;
+            /** @description Version string (optional, defaults to "1.0.0"). */
+            version?: string | null;
+        };
         /** @description Request body for creating a brand. */
         CreateBrandRequest: {
             /** @description Optional description. */
@@ -113,6 +300,28 @@ export interface components {
             name: string;
             /** @description Optional parent category ID. */
             parentId?: string | null;
+        };
+        /** @description Request to create a consumption record. */
+        CreateConsumptionRequest: {
+            /**
+             * Format: double
+             * @description Actual quantity consumed.
+             */
+            actualQuantity: number;
+            /** @description Component product ID. */
+            componentProductId: string;
+            /**
+             * Format: double
+             * @description Planned quantity.
+             */
+            plannedQuantity: number;
+            /** @description Unit of measure. */
+            unit: string;
+            /**
+             * Format: double
+             * @description Waste quantity (optional, defaults to 0).
+             */
+            wasteQuantity?: number | null;
         };
         /** @description Order item within a create order request. */
         CreateOrderItemRequest: {
@@ -222,6 +431,25 @@ export interface components {
              * @description Optional weight in kilograms.
              */
             weight?: number | null;
+        };
+        /** @description Request to create a production run. */
+        CreateProductionRunRequest: {
+            /** @description Completed timestamp (ISO 8601). */
+            completedAt?: string | null;
+            /**
+             * Format: int64
+             * @description Estimated cost (optional).
+             */
+            estimatedCost?: number | null;
+            /**
+             * Format: double
+             * @description Quantity to produce.
+             */
+            quantityProduced: number;
+            /** @description Started timestamp (ISO 8601). */
+            startedAt?: string | null;
+            /** @description Status (optional, defaults to "planned"). */
+            status?: string | null;
         };
         /** @description Request body for creating a role. */
         CreateRoleRequest: {
@@ -592,6 +820,47 @@ export interface components {
              */
             weight?: number | null;
         };
+        /** @description Production run response. */
+        ProductionRunResponse: {
+            /**
+             * Format: int64
+             * @description Actual cost.
+             */
+            actualCost?: number | null;
+            /** @description BOM ID. */
+            bomId: string;
+            /** @description Completed timestamp. */
+            completedAt?: string | null;
+            /** @description Creation timestamp. */
+            createdAt: string;
+            /** @description User who created this run. */
+            createdBy?: string | null;
+            /**
+             * Format: int64
+             * @description Estimated cost.
+             */
+            estimatedCost?: number | null;
+            /** @description Unique identifier. */
+            id: string;
+            /** @description Organization ID. */
+            organizationId: string;
+            /**
+             * Format: double
+             * @description Quantity produced.
+             */
+            quantityProduced: number;
+            /** @description Started timestamp. */
+            startedAt?: string | null;
+            /** @description Status. */
+            status: string;
+            /** @description Last update timestamp. */
+            updatedAt: string;
+        };
+        /** @description Production run with consumptions. */
+        ProductionRunWithConsumptionResponse: components["schemas"]["ProductionRunResponse"] & {
+            /** @description List of consumption records. */
+            consumptions: components["schemas"]["ConsumptionResponse"][];
+        };
         /** @description Request body for `POST /api/auth/refresh`. */
         RefreshRequest: {
             /** @description The refresh token issued during login or a previous refresh. */
@@ -728,6 +997,48 @@ export interface components {
             /** @description Record last-update timestamp. */
             updatedAt: string;
         };
+        /** @description Request to update a BOM item. */
+        UpdateBomItemRequest: {
+            /** @description Optional notes. */
+            notes?: string | null;
+            /**
+             * Format: double
+             * @description Quantity needed.
+             */
+            quantity?: number | null;
+            /** @description Unit of measure. */
+            unit?: string | null;
+            /**
+             * Format: double
+             * @description Waste percentage.
+             */
+            wastePercent?: number | null;
+            /**
+             * Format: double
+             * @description Yield percentage.
+             */
+            yieldPercent?: number | null;
+        };
+        /** @description Request to update a BOM. */
+        UpdateBomRequest: {
+            /** @description Effective from date. */
+            effectiveFrom?: string | null;
+            /** @description Effective to date. */
+            effectiveTo?: string | null;
+            /** @description Name of the BOM. */
+            name?: string | null;
+            /** @description Optional notes. */
+            notes?: string | null;
+            /** @description Status. */
+            status?: string | null;
+            /**
+             * Format: int64
+             * @description Total cost.
+             */
+            totalCost?: number | null;
+            /** @description Version string. */
+            version?: string | null;
+        };
         /** @description Request body for updating a brand (all fields optional). */
         UpdateBrandRequest: {
             /** @description Updated description. */
@@ -851,6 +1162,30 @@ export interface components {
              * @description Updated weight.
              */
             weight?: number | null;
+        };
+        /** @description Request to update a production run. */
+        UpdateProductionRunRequest: {
+            /**
+             * Format: int64
+             * @description Actual cost.
+             */
+            actualCost?: number | null;
+            /** @description Completed timestamp. */
+            completedAt?: string | null;
+            /**
+             * Format: int64
+             * @description Estimated cost.
+             */
+            estimatedCost?: number | null;
+            /**
+             * Format: double
+             * @description Quantity produced.
+             */
+            quantityProduced?: number | null;
+            /** @description Started timestamp. */
+            startedAt?: string | null;
+            /** @description Status. */
+            status?: string | null;
         };
         /** @description Request body for updating a role (all fields optional). */
         UpdateRoleRequest: {
