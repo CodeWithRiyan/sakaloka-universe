@@ -1,5 +1,5 @@
 # Sakaloka-Universe — Dev environment overrides
-# SurrealDB: memory mode (fast, no persistence needed for dev)
+# Dev uses external infra only (postgres managed in /srv/infra/dev)
 
 services:
 
@@ -12,39 +12,6 @@ services:
       - DATABASE_URL=${DATABASE_URL}
     networks:
       - net-dev
-
-  sakaloka-surrealdb:
-    image: surrealdb/surrealdb:v3.0.4
-    container_name: sakaloka-dev-surrealdb
-    command: start --log info --user ${SURREALDB_USER:-root} --pass ${SURREALDB_PASS:-sakaloka-dev-password} memory
-    ports:
-      - "127.0.0.1:60010:8000"
-    networks:
-      - net-dev
-
-  sakaloka-zenoh:
-    image: eclipse/zenoh:1.0.0
-    container_name: sakaloka-dev-zenoh
-    ports:
-      - "127.0.0.1:60020:7447"
-    volumes:
-      - ./config/zenoh.dev.json5:/zenoh.json5:ro
-      - ./config/zenoh-users.dev.dict:/zenoh-users.dict:ro
-    networks:
-      - net-dev
-
-  sakaloka-qdrant:
-    image: qdrant/qdrant:latest
-    container_name: sakaloka-dev-qdrant
-    ports:
-      - "127.0.0.1:60030:6333"
-    volumes:
-      - sakaloka-dev-qdrant-data:/qdrant/storage
-    networks:
-      - net-dev
-
-volumes:
-  sakaloka-dev-qdrant-data:
 
 networks:
   net-dev:
