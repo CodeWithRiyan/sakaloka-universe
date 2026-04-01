@@ -489,7 +489,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_SSH_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "deploy/docker-compose.base.yml,deploy/docker-compose.${{ needs.resolve-env.outputs.env_name }}.yml,deploy/config/,deploy/deploy.sh"
+          source: "deploy/docker-compose.${{ needs.resolve-env.outputs.env_name }}.yml,deploy/deploy.sh"
           target: "/srv/apps/sakaloka/${{ needs.resolve-env.outputs.env_name }}"
           strip_components: 1
 
@@ -549,7 +549,7 @@ jobs:
               sleep 5
             done
             echo "::error::API health check failed after 150s"
-            docker compose --env-file .env -f docker-compose.base.yml -f "docker-compose.${SAKALOKA_ENV}.yml" logs sakaloka-api --tail=50
+            docker compose --env-file .env -f "docker-compose.${SAKALOKA_ENV}.yml" logs sakaloka-api --tail=50
             exit 1
 
   # ─────────────────────────────────────────────────────────────

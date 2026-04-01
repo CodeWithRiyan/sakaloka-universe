@@ -41,9 +41,8 @@ The `deploy/` directory contains per-environment Docker Compose configurations:
 
 ```
 deploy/
-├── docker-compose.base.yml    # Shared service definitions
-├── docker-compose.local.yml   # Local overrides
-├── docker-compose.dev.yml     # Dev environment
+├── docker-compose.local.yml   # Local overrides (build from source)
+├── docker-compose.dev.yml     # Dev environment (single source of truth)
 ├── docker-compose.sit.yml     # SIT environment
 ├── docker-compose.demo.yml    # Demo environment
 ├── docker-compose.prod.yml    # Production environment

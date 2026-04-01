@@ -96,8 +96,7 @@ Create these for each GitHub Environment (`dev`, `sit`, `demo`, `prod`):
 /srv/apps/sakaloka/{env}/
   .env                         # Auto-generated on first deploy from secrets
   deploy.sh                    # Deploy helper script
-  docker-compose.base.yml      # Shared service definitions
-  docker-compose.{env}.yml     # Environment-specific overrides
+  docker-compose.{env}.yml     # Environment-specific compose (single source of truth)
   config/
     nginx-sakaloka.conf        # Nginx reverse proxy (copied to /srv/apps/infra/config/)
     zenoh.{env}.json5           # Zenoh router config

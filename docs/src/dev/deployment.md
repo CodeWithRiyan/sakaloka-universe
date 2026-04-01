@@ -15,12 +15,11 @@ Sakaloka-Universe deploys to a VPS using Docker Compose with per-environment con
 
 ```
 deploy/
-├── docker-compose.base.yml   # Shared service definitions
-├── docker-compose.dev.yml    # Dev overrides (ports, volumes)
-├── docker-compose.sit.yml    # SIT overrides
-├── docker-compose.demo.yml   # Demo overrides
-├── docker-compose.prod.yml   # Prod overrides
-├── docker-compose.local.yml  # Local testing
+├── docker-compose.dev.yml    # Dev environment (single source of truth)
+├── docker-compose.sit.yml    # SIT environment
+├── docker-compose.demo.yml   # Demo environment
+├── docker-compose.prod.yml   # Prod environment
+├── docker-compose.local.yml  # Local testing (build from source)
 ├── deploy.sh                 # Deployment script
 ├── .env.template             # Environment variable template
 └── config/
