@@ -235,90 +235,62 @@ impl PgClient {
             } else {
                 return Ok((vec![], 0));
             }
+        } else if let Some(ref org) = org_uuid {
+            sqlx::query(count_sql)
+                .bind(org)
+                .fetch_one(&self.pool)
+                .await?
         } else {
-            if let Some(ref org) = org_uuid {
-                sqlx::query(count_sql)
-                    .bind(org)
-                    .fetch_one(&self.pool)
-                    .await?
-            } else {
-                return Ok((vec![], 0));
-            }
+            return Ok((vec![], 0));
         };
 
         let total: i64 = count_row.get("cnt");
 
-        let sql = if let Some(ref search) = filters.search {
-            if let Some(ref org) = org_uuid {
-                "SELECT * FROM boms WHERE organization_id = $1 AND name ILIKE $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4"
-            } else {
-                return Ok((vec![], 0));
-            }
-        } else if let Some(ref prod) = product_uuid {
-            if let Some(ref org) = org_uuid {
-                "SELECT * FROM boms WHERE organization_id = $1 AND product_id = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4"
-            } else {
-                return Ok((vec![], 0));
-            }
-        } else if let Some(ref status) = filters.status {
-            if let Some(ref org) = org_uuid {
-                "SELECT * FROM boms WHERE organization_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4"
-            } else {
-                return Ok((vec![], 0));
-            }
-        } else {
-            "SELECT * FROM boms WHERE organization_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
-        };
-
         let offset = (page - 1) * per_page;
 
+        let Some(ref org) = org_uuid else {
+            return Ok((vec![], total));
+        };
+
         let rows = if let Some(ref search) = filters.search {
-            if let Some(ref org) = org_uuid {
-                sqlx::query_as::<_, BomRow>(sql)
-                    .bind(org)
-                    .bind(format!("%{}%", search))
-                    .bind(per_page)
-                    .bind(offset)
-                    .fetch_all(&self.pool)
-                    .await?
-            } else {
-                vec![]
-            }
+            sqlx::query_as::<_, BomRow>(
+                "SELECT * FROM boms WHERE organization_id = $1 AND name ILIKE $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4",
+            )
+            .bind(org)
+            .bind(format!("%{}%", search))
+            .bind(per_page)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
         } else if let Some(ref prod) = product_uuid {
-            if let Some(ref org) = org_uuid {
-                sqlx::query_as::<_, BomRow>(sql)
-                    .bind(org)
-                    .bind(prod)
-                    .bind(per_page)
-                    .bind(offset)
-                    .fetch_all(&self.pool)
-                    .await?
-            } else {
-                vec![]
-            }
+            sqlx::query_as::<_, BomRow>(
+                "SELECT * FROM boms WHERE organization_id = $1 AND product_id = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4",
+            )
+            .bind(org)
+            .bind(prod)
+            .bind(per_page)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
         } else if let Some(ref status) = filters.status {
-            if let Some(ref org) = org_uuid {
-                sqlx::query_as::<_, BomRow>(sql)
-                    .bind(org)
-                    .bind(status)
-                    .bind(per_page)
-                    .bind(offset)
-                    .fetch_all(&self.pool)
-                    .await?
-            } else {
-                vec![]
-            }
+            sqlx::query_as::<_, BomRow>(
+                "SELECT * FROM boms WHERE organization_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4",
+            )
+            .bind(org)
+            .bind(status)
+            .bind(per_page)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
         } else {
-            if let Some(ref org) = org_uuid {
-                sqlx::query_as::<_, BomRow>(sql)
-                    .bind(org)
-                    .bind(per_page)
-                    .bind(offset)
-                    .fetch_all(&self.pool)
-                    .await?
-            } else {
-                vec![]
-            }
+            sqlx::query_as::<_, BomRow>(
+                "SELECT * FROM boms WHERE organization_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+            )
+            .bind(org)
+            .bind(per_page)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
         };
 
         Ok((rows.into_iter().map(Bom::from).collect(), total))

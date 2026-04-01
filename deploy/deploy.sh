@@ -44,9 +44,15 @@ DOCKER_COMPOSE="docker compose --env-file $ENV_FILE $COMPOSE"
 case "$ACTION" in
   up)
     echo "==> Deploying sakaloka [$ENV]"
-    $DOCKER_COMPOSE up -d
-    echo "==> Waiting for health check..."
-    sleep 5
+    # Connect external PostgreSQL to the compose network if it exists
+    NETWORK="net-${ENV}"
+    PG_CONTAINER="infra-${ENV}-postgres"
+    if docker ps --format '{{.Names}}' | grep -q "^${PG_CONTAINER}$"; then
+      echo "==> Connecting ${PG_CONTAINER} to ${NETWORK}..."
+      docker network connect "$NETWORK" "$PG_CONTAINER" 2>/dev/null || true
+    fi
+    $DOCKER_COMPOSE up -d --remove-orphans --wait --wait-timeout 120
+    echo "==> Deployment complete!"
     $DOCKER_COMPOSE ps
     ;;
   down)

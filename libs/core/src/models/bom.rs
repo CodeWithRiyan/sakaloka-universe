@@ -3,21 +3,16 @@
 use serde::{Deserialize, Serialize};
 
 /// Status of a Bill of Materials.
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum BomStatus {
     /// Draft — not yet active.
+    #[default]
     Draft,
     /// Active — currently in use.
     Active,
     /// Archived — no longer used, kept for history.
     Archived,
-}
-
-impl Default for BomStatus {
-    fn default() -> Self {
-        Self::Draft
-    }
 }
 
 impl std::fmt::Display for BomStatus {
@@ -105,10 +100,11 @@ pub struct BomItem {
 }
 
 /// Status of a production run.
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ProductionRunStatus {
     /// Planned but not yet started.
+    #[default]
     Planned,
     /// Currently in progress.
     InProgress,
@@ -116,12 +112,6 @@ pub enum ProductionRunStatus {
     Completed,
     /// Cancelled before completion.
     Cancelled,
-}
-
-impl Default for ProductionRunStatus {
-    fn default() -> Self {
-        Self::Planned
-    }
 }
 
 impl std::fmt::Display for ProductionRunStatus {
