@@ -7,7 +7,7 @@
 # Architecture
 
 - [Overview](./architecture/overview.md)
-- [8-Planet Model](./architecture/planets.md)
+- [Planet Model](./architecture/planets.md)
 - [Port Allocation](./architecture/ports.md)
 - [Iron Curtain Rules](./architecture/iron-curtain.md)
 - [Data Flow](./architecture/data-flow.md)

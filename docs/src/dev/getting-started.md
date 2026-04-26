@@ -22,8 +22,8 @@ cp .env.example .env
 # 3. Check for port conflicts
 bash scripts/check-ports.sh
 
-# 4. Start planet containers
-docker compose up -d surrealdb zenoh qdrant
+# 4. Start services
+docker compose up -d
 
 # 5. Verify all planets are healthy
 docker ps --filter "name=sakaloka"

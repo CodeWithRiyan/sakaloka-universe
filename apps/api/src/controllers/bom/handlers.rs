@@ -22,6 +22,18 @@ use sakaloka_core::models::bom::{
     Bom, BomItem, BomStatus, Consumption, ProductionRun, ProductionRunStatus,
 };
 
+#[utoipa::path(
+    get,
+    path = "/api/boms",
+    tag = "BOM",
+    params(PaginationParams),
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "BOM list retrieved", body = ApiResponse<Vec<BomResponse>>)
+    )
+)]
 /// `GET /api/boms` — list BOMs with pagination and filters.
 pub async fn list(
     State(state): State<AppState>,
@@ -53,6 +65,19 @@ pub async fn list(
     )))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/boms/{id}",
+    tag = "BOM",
+    params(("id" = String, Path, description = "BOM ID")),
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "BOM retrieved", body = ApiResponse<BomWithItemsResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `GET /api/boms/{id}` — get a BOM with its items.
 pub async fn show(
     State(state): State<AppState>,
@@ -84,6 +109,19 @@ pub async fn show(
     )))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/boms/product/{product_id}",
+    tag = "BOM",
+    params(("product_id" = String, Path, description = "Product ID")),
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "BOM retrieved", body = ApiResponse<BomResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `GET /api/boms/product/{product_id}` — get active BOM for a product.
 pub async fn show_by_product(
     State(state): State<AppState>,
@@ -100,6 +138,19 @@ pub async fn show_by_product(
     Ok(Json(ApiResponse::ok(convert_bom(bom), "BOM retrieved")))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/boms",
+    tag = "BOM",
+    request_body = CreateBomRequest,
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "BOM created", body = ApiResponse<BomResponse>),
+        (status = 400, description = "Validation error")
+    )
+)]
 /// `POST /api/boms` — create a new BOM.
 pub async fn create(
     State(state): State<AppState>,
@@ -151,6 +202,20 @@ pub async fn create(
     )))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/boms/{id}",
+    tag = "BOM",
+    params(("id" = String, Path, description = "BOM ID")),
+    request_body = UpdateBomRequest,
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "BOM updated", body = ApiResponse<BomResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `PATCH /api/boms/{id}` — update a BOM.
 pub async fn update(
     State(state): State<AppState>,
@@ -191,6 +256,19 @@ pub async fn update(
     Ok(Json(ApiResponse::ok(convert_bom(result), "BOM updated")))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/boms/{id}",
+    tag = "BOM",
+    params(("id" = String, Path, description = "BOM ID")),
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "BOM archived"),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `DELETE /api/boms/{id}` — archive a BOM.
 pub async fn remove(
     State(state): State<AppState>,
@@ -206,6 +284,19 @@ pub async fn remove(
     Ok(Json(ApiResponse::ok((), "BOM archived")))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/boms/{id}/activate",
+    tag = "BOM",
+    params(("id" = String, Path, description = "BOM ID")),
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "BOM activated", body = ApiResponse<BomResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `POST /api/boms/{id}/activate` — activate a BOM version.
 pub async fn activate(
     State(state): State<AppState>,
@@ -232,6 +323,18 @@ pub async fn activate(
     Ok(Json(ApiResponse::ok(convert_bom(result), "BOM activated")))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/boms/{id}/items",
+    tag = "BOM Items",
+    params(("id" = String, Path, description = "BOM ID")),
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "BOM items retrieved", body = ApiResponse<Vec<BomItemResponse>>)
+    )
+)]
 /// `GET /api/boms/{id}/items` — list items in a BOM.
 pub async fn list_items(
     State(state): State<AppState>,
@@ -249,6 +352,20 @@ pub async fn list_items(
     Ok(Json(ApiResponse::ok(responses, "BOM items retrieved")))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/boms/{id}/items",
+    tag = "BOM Items",
+    params(("id" = String, Path, description = "BOM ID")),
+    request_body = CreateBomItemRequest,
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "BOM item added", body = ApiResponse<BomItemResponse>),
+        (status = 400, description = "Validation error")
+    )
+)]
 /// `POST /api/boms/{id}/items` — add an item to a BOM.
 pub async fn add_item(
     State(state): State<AppState>,
@@ -300,6 +417,23 @@ pub async fn add_item(
     )))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/boms/{bom_id}/items/{item_id}",
+    tag = "BOM Items",
+    params(
+        ("bom_id" = String, Path, description = "BOM ID"),
+        ("item_id" = String, Path, description = "Item ID")
+    ),
+    request_body = UpdateBomItemRequest,
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "BOM item updated", body = ApiResponse<BomItemResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `PATCH /api/boms/{bom_id}/items/{item_id}` — update a BOM item.
 pub async fn update_item(
     State(state): State<AppState>,
@@ -359,6 +493,22 @@ pub async fn update_item(
     )))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/boms/{bom_id}/items/{item_id}",
+    tag = "BOM Items",
+    params(
+        ("bom_id" = String, Path, description = "BOM ID"),
+        ("item_id" = String, Path, description = "Item ID")
+    ),
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "BOM item removed"),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `DELETE /api/boms/{bom_id}/items/{item_id}` — remove a BOM item.
 pub async fn remove_item(
     State(state): State<AppState>,
@@ -390,6 +540,18 @@ pub async fn remove_item(
     Ok(Json(ApiResponse::ok((), "BOM item removed")))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/boms/{id}/production-runs",
+    tag = "Production Runs",
+    params(("id" = String, Path, description = "BOM ID"), PaginationParams),
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "Production runs retrieved", body = ApiResponse<Vec<ProductionRunResponse>>)
+    )
+)]
 /// `GET /api/boms/{id}/production-runs` — list production runs.
 pub async fn list_production_runs(
     State(state): State<AppState>,
@@ -415,6 +577,22 @@ pub async fn list_production_runs(
     )))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/boms/{id}/production-runs/{run_id}",
+    tag = "Production Runs",
+    params(
+        ("id" = String, Path, description = "BOM ID"),
+        ("run_id" = String, Path, description = "Production Run ID")
+    ),
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "Production run retrieved", body = ApiResponse<ProductionRunWithConsumptionResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `GET /api/boms/{id}/production-runs/{run_id}` — get a production run with consumptions.
 pub async fn show_production_run(
     State(state): State<AppState>,
@@ -447,6 +625,20 @@ pub async fn show_production_run(
     )))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/boms/{id}/production-runs",
+    tag = "Production Runs",
+    params(("id" = String, Path, description = "BOM ID")),
+    request_body = CreateProductionRunRequest,
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "Production run created", body = ApiResponse<ProductionRunResponse>),
+        (status = 400, description = "Validation error")
+    )
+)]
 /// `POST /api/boms/{id}/production-runs` — create a production run.
 pub async fn create_production_run(
     State(state): State<AppState>,
@@ -498,6 +690,23 @@ pub async fn create_production_run(
     )))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/boms/{id}/production-runs/{run_id}",
+    tag = "Production Runs",
+    params(
+        ("id" = String, Path, description = "BOM ID"),
+        ("run_id" = String, Path, description = "Production Run ID")
+    ),
+    request_body = UpdateProductionRunRequest,
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "Production run updated", body = ApiResponse<ProductionRunResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `PATCH /api/boms/{id}/production-runs/{run_id}` — update a production run.
 pub async fn update_production_run(
     State(state): State<AppState>,
@@ -548,6 +757,23 @@ pub async fn update_production_run(
     )))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/boms/{id}/production-runs/{run_id}/consumptions",
+    tag = "Production Runs",
+    params(
+        ("id" = String, Path, description = "BOM ID"),
+        ("run_id" = String, Path, description = "Production Run ID")
+    ),
+    request_body = CreateConsumptionRequest,
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "Consumption recorded", body = ApiResponse<ConsumptionResponse>),
+        (status = 400, description = "Validation error")
+    )
+)]
 /// `POST /api/boms/{id}/production-runs/{run_id}/consumptions` — add a consumption record.
 pub async fn add_consumption(
     State(state): State<AppState>,
@@ -578,6 +804,21 @@ pub async fn add_consumption(
     )))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/boms/{id}/production-runs/{run_id}/consumptions",
+    tag = "Production Runs",
+    params(
+        ("id" = String, Path, description = "BOM ID"),
+        ("run_id" = String, Path, description = "Production Run ID")
+    ),
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "Consumptions retrieved", body = ApiResponse<Vec<ConsumptionResponse>>)
+    )
+)]
 /// `GET /api/boms/{id}/production-runs/{run_id}/consumptions` — list consumptions for a run.
 pub async fn list_consumptions(
     State(state): State<AppState>,

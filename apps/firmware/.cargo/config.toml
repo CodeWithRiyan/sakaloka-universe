@@ -1,7 +1,0 @@
-# ──────────────────────────────────────────────────────────────
-# Cargo configuration for Mercury (RTIC) firmware.
-# Sets the default build target to ARM Cortex-M4 with FPU.
-# ──────────────────────────────────────────────────────────────
-[build]
-# ARM Cortex-M4 with hardware FPU (used by STM32F4, nRF52, etc.)
-target = "thumbv7em-none-eabihf"

@@ -502,7 +502,7 @@ libs/secure/
 | ID | User Story | Acceptance Criteria | Points | Priority |
 |---|---|---|---|---|
 | US-14 | As a frontend developer, I want CRUD endpoints for core entities so the UI can manage data. | POST, GET, PUT, DELETE for all core resources; responses are typed Rust structs serialized to JSON; errors follow RFC 9457 Problem Details format | 8 | 🟠 High |
-| US-15 | As a developer, I want Swagger UI auto-generated from code so API contracts are always up-to-date. | Swagger UI available at `/swagger-ui`; all endpoints documented; schemas derived from Rust types | 5 | 🟠 High |
+| US-15 | As a developer, I want API docs auto-generated from code so API contracts are always up-to-date. | Scalar UI available at `/scalar`; all endpoints documented; schemas derived from Rust types | 5 | 🟠 High |
 | US-16 | As a developer, I want request/response middleware for logging so all API traffic is observable. | Structured JSON logs with request ID, latency, status code; latency percentiles exported to metrics endpoint | 5 | 🟡 Medium |
 
 **Sprint 5 Total: 18 pts**

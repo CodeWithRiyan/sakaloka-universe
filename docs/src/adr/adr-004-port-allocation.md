@@ -19,10 +19,6 @@ All Sakaloka-Universe services bind to **`127.0.0.1:5xxxx`** using Docker port m
 
 ```
 127.0.0.1:53000  → Earth API        (5 prefix + 3000)
-127.0.0.1:54000  → Mars / Ockam     (5 prefix + 4000)
-127.0.0.1:57447  → Saturn / Zenoh   (5 prefix + 7447)
-127.0.0.1:56333  → Uranus / Qdrant  (5 prefix + 6333)
-127.0.0.1:58000  → Jupiter / SurrealDB (5 prefix + 8000)
 ```
 
 Rules:

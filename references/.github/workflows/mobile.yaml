@@ -1,0 +1,388 @@
+name: Build & Release Android APK
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch_type:
+        description: 'Branch type for version bump'
+        required: true
+        type: choice
+        options:
+          - dev
+          - main
+          - prod
+
+concurrency:
+  group: android-apk-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-release:
+    name: Build & Release Android APK
+    runs-on: docker
+    container:
+      image: node:20-bullseye
+
+    steps:
+      # ------------------------------------------------------------
+      # 1. Install base tools (git, curl, unzip) needed by later actions
+      # ------------------------------------------------------------
+      - name: Install base tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git curl unzip ca-certificates
+          rm -rf /var/lib/apt/lists/*
+
+      # ------------------------------------------------------------
+      # 2. Checkout
+      # ------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------
+      # 3. Setup pnpm with cache
+      # ------------------------------------------------------------
+      - name: Setup pnpm
+        uses: https://github.com/pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      # ------------------------------------------------------------
+      # 4. Install dependencies
+      # ------------------------------------------------------------
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ------------------------------------------------------------
+      # 5. Setup Java 17
+      # ------------------------------------------------------------
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # ------------------------------------------------------------
+      # 6. Setup Android SDK with cache
+      # ------------------------------------------------------------
+      - name: Setup Android SDK
+        uses: https://github.com/android-actions/setup-android@v3
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # ------------------------------------------------------------
+      # 7. Bump version based on branch
+      # ------------------------------------------------------------
+      - name: Bump version
+        id: version
+        run: |
+          set -euo pipefail
+
+          VERSION=$(cat .version)
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          BRANCH="${{ github.event.inputs.branch_type }}"
+
+          echo "Current version: $VERSION"
+          echo "Branch type: $BRANCH"
+
+          if [ "$BRANCH" = "dev" ]; then
+            PATCH=$((PATCH + 1))
+          elif [ "$BRANCH" = "main" ]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          elif [ "$BRANCH" = "prod" ]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          else
+            echo "Unsupported branch: $BRANCH"
+            exit 1
+          fi
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "$NEW_VERSION" > .version
+
+          echo "New version: $NEW_VERSION"
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      # ------------------------------------------------------------
+      # 8. Sync version to app.json
+      # ------------------------------------------------------------
+      - name: Sync version to app.json
+        run: |
+          set -euo pipefail
+
+          VERSION=$(cat .version)
+          VERSION_CODE=$(echo "$VERSION" | awk -F. '{print $1 * 10000 + $2 * 100 + $3}')
+
+          echo "Syncing version $VERSION (versionCode: $VERSION_CODE)"
+
+          node -e "
+            const fs = require('fs');
+            const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            app.expo.version = '$VERSION';
+            app.expo.android.versionCode = $VERSION_CODE;
+            fs.writeFileSync('app.json', JSON.stringify(app, null, 2) + '\n');
+          "
+
+      # ------------------------------------------------------------
+      # 9. Commit version bump
+      # ------------------------------------------------------------
+      - name: Commit version bump
+        run: |
+          git config user.name "forgejo-actions"
+          git config user.email "forgejo-actions@sakaloka.id"
+
+          git add .version app.json
+          git commit -m "chore(release): v$(cat .version)" || echo "No changes to commit"
+          git push
+
+      # ------------------------------------------------------------
+      # 10. Prebuild Expo assets
+      # ------------------------------------------------------------
+      - name: Prebuild Expo assets
+        run: npx expo prebuild --platform android --no-install
+
+      # ------------------------------------------------------------
+      # 11. Sync version to build.gradle
+      # ------------------------------------------------------------
+      - name: Sync version to build.gradle
+        run: |
+          set -euo pipefail
+
+          VERSION=$(cat .version)
+          VERSION_CODE=$(echo "$VERSION" | awk -F. '{print $1 * 10000 + $2 * 100 + $3}')
+
+          echo "Syncing version $VERSION (versionCode: $VERSION_CODE) to build.gradle"
+
+          sed -i "s/versionCode [0-9]*/versionCode $VERSION_CODE/" android/app/build.gradle
+          sed -i "s/versionName \"[0-9.]*\"/versionName \"$VERSION\"/" android/app/build.gradle
+
+          grep -E "versionCode|versionName" android/app/build.gradle | head -n 2
+
+      # ------------------------------------------------------------
+      # 12. Clear Metro bundler cache
+      # ------------------------------------------------------------
+      - name: Clear Metro cache
+        run: |
+          TMP="${TMPDIR:-/tmp}"
+          rm -rf "$TMP"/metro-* || true
+          rm -rf "$TMP"/haste-* || true
+
+      # ------------------------------------------------------------
+      # 13. Build APK with Gradle
+      # ------------------------------------------------------------
+      - name: Build Android APK
+        run: |
+          set -euo pipefail
+
+          VERSION=$(cat .version)
+          echo "Building APK version $VERSION"
+
+          # Set API URL based on branch_type
+          if [ "${{ github.event.inputs.branch_type }}" = "prod" ]; then
+            export EXPO_PUBLIC_API_URL="https://api-pos-damai.riyansolusi.com"
+          elif [ "${{ github.event.inputs.branch_type }}" = "main" ]; then
+            export EXPO_PUBLIC_API_URL="https://api-pos-damai-sit.sakaloka.id"
+          else
+            export EXPO_PUBLIC_API_URL="https://api-pos-damai-dev.sakaloka.id"
+          fi
+          echo "Using API_URL: $EXPO_PUBLIC_API_URL"
+
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+          cd ..
+
+          # Find the APK (search recursively to handle ABI splits)
+          APK_PATH=$(find android/app/build/outputs/apk -name "*.apk" -type f | head -n 1)
+
+          if [ -z "$APK_PATH" ]; then
+            echo "APK not found"
+            exit 1
+          fi
+
+          # Rename APK and move to release dir
+          APK_NAME="pos-damai-v$VERSION.apk"
+          mkdir -p release
+          cp "$APK_PATH" "release/$APK_NAME"
+
+          echo "APK_NAME=$APK_NAME" >> $GITHUB_ENV
+
+          ls -lh "release/$APK_NAME"
+
+      # ------------------------------------------------------------
+      # 14. Resolve Docker host gateway IP
+      # ------------------------------------------------------------
+      - name: Resolve host gateway IP
+        id: hostip
+        run: |
+          # Try multiple methods to get Docker host IP
+
+          # Method 1: Check /etc/hosts for host.docker.internal
+          if grep -q "host.docker.internal" /etc/hosts 2>/dev/null; then
+            HOST_IP=$(grep "host.docker.internal" /etc/hosts | awk '{print $1}' | head -1)
+            if [ -n "$HOST_IP" ]; then
+              echo "HOST_IP=${HOST_IP}" >> $GITHUB_OUTPUT
+              echo "Resolved Docker host via /etc/hosts: ${HOST_IP}"
+              exit 0
+            fi
+          fi
+
+          # Method 2: Parse /proc/net/route (little-endian hex)
+          hex=$(awk '$2 == "00000000" {print $3}' /proc/net/route | head -1)
+          if [ -n "$hex" ] && [ "$hex" != "00000000" ]; then
+            b0=$((0x${hex:6:2}))
+            b1=$((0x${hex:4:2}))
+            b2=$((0x${hex:2:2}))
+            b3=$((0x${hex:0:2}))
+            HOST_IP="${b0}.${b1}.${b2}.${b3}"
+            if [ "$HOST_IP" != "0.0.0.0" ]; then
+              echo "HOST_IP=${HOST_IP}" >> $GITHUB_OUTPUT
+              echo "Resolved Docker host via /proc/net/route: ${HOST_IP}"
+              exit 0
+            fi
+          fi
+          HOST_IP="172.17.0.1"
+          echo "HOST_IP=${HOST_IP}" >> $GITHUB_OUTPUT
+          echo "Using fallback Docker host IP: ${HOST_IP}"
+
+      # ------------------------------------------------------------
+      # 15. Generate changelog
+      # ------------------------------------------------------------
+      - name: Generate changelog
+        id: changelog
+        run: |
+          set -euo pipefail
+
+          LAST_TAG=$(git tag --sort=-creatordate | grep '^v' | head -n 1 || true)
+
+          if [ -z "$LAST_TAG" ]; then
+            RANGE=""
+            echo "No previous tag found, using all commits"
+          else
+            RANGE="$LAST_TAG..HEAD"
+            echo "Generating changelog from $RANGE"
+          fi
+
+          git log $RANGE --pretty=format:"%s" > commits.txt
+
+          {
+            echo "## Features"
+            grep '^feat:' commits.txt | sed 's/^feat: /* /' || true
+            echo ""
+
+            echo "## Bug Fixes"
+            grep '^fix:' commits.txt | sed 's/^fix: /* /' || true
+            echo ""
+
+            echo "## Refactor"
+            grep '^refactor:' commits.txt | sed 's/^refactor: /* /' || true
+            echo ""
+
+            echo "## Chore"
+            grep '^chore:' commits.txt | sed 's/^chore: /* /' || true
+            echo ""
+
+            echo "## Others"
+            grep -vE '^(feat|fix|refactor|chore|docs):' commits.txt | sed 's/^/* /' || true
+          } > CHANGELOG.md
+
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          cat CHANGELOG.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # ------------------------------------------------------------
+      # 16. Create Forgejo Release + Attach APK
+      # ------------------------------------------------------------
+      - name: Create Forgejo Release + Attach APK
+        run: |
+          set -euo pipefail
+
+          VERSION=$(cat .version)
+          TAG="v${VERSION}"
+          APK_NAME="pos-damai-v${VERSION}.apk"
+          APK_PATH="release/${APK_NAME}"
+          COMMIT_SHA=$(git rev-parse HEAD | cut -c1-7)
+          BRANCH="${{ github.ref_name }}"
+
+          # Internal Forgejo API (runner -> host:8080 -> Forgejo container)
+          # Bypasses Cloudflare 100MB upload limit
+          HOST_IP="${{ steps.hostip.outputs.HOST_IP }}"
+          API_BASE="http://${HOST_IP}:8080/api/v1/repos/${{ github.repository }}"
+          echo "Using Forgejo API at: ${API_BASE}"
+
+          # 1. Create release
+          RELEASE_RESPONSE=$(curl -s -X POST "${API_BASE}/releases" \
+            -H "Authorization: token ${{ secrets.FORGEJO_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"tag_name\": \"${TAG}\",
+              \"name\": \"POS Damai v${VERSION}\",
+              \"body\": \"placeholder\"
+            }")
+
+          RELEASE_ID=$(node -e "const r=JSON.parse(process.argv[1]); console.log(r.id || '')" "$RELEASE_RESPONSE")
+
+          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "undefined" ]; then
+            echo "Failed to create release"
+            echo "$RELEASE_RESPONSE"
+            exit 1
+          fi
+
+          echo "Release created: ${TAG} (id: ${RELEASE_ID})"
+
+          # 2. Attach APK as release asset
+          echo "Uploading ${APK_NAME} as release asset..."
+          echo "File size: $(du -h ${APK_PATH} | cut -f1)"
+
+          ATTACH_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${API_BASE}/releases/${RELEASE_ID}/assets?name=${APK_NAME}" \
+            -H "Authorization: token ${{ secrets.FORGEJO_TOKEN }}" \
+            -H "Content-Type: application/octet-stream" \
+            -T "${APK_PATH}" \
+            --max-time 600)
+
+          HTTP_CODE=$(echo "$ATTACH_RESPONSE" | tail -n1)
+
+          if [ "$HTTP_CODE" = "201" ]; then
+            echo "APK attached to release"
+            BODY="**POS Damai v${VERSION}**\n\n- Branch: \`${BRANCH}\`\n- Commit: \`${COMMIT_SHA}\`\n- Build: Gradle (Forgejo Actions)\n\nDownload the APK from the **Assets** section below."
+          else
+            echo "Asset upload failed with HTTP ${HTTP_CODE}"
+            echo "Response: $(echo "$ATTACH_RESPONSE" | head -n -1)"
+            BODY="**POS Damai v${VERSION}**\n\n- Branch: \`${BRANCH}\`\n- Commit: \`${COMMIT_SHA}\`\n- Build: Gradle (Forgejo Actions)\n\nAPK attachment failed (HTTP ${HTTP_CODE}). Check CI logs."
+          fi
+
+          # 3. Update release body
+          curl -s -X PATCH "${API_BASE}/releases/${RELEASE_ID}" \
+            -H "Authorization: token ${{ secrets.FORGEJO_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"body\": \"${BODY}\"}"
+
+          echo "Release updated: ${TAG}"

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Build
-cargo build --workspace                # Debug build (excludes firmware)
+cargo build --workspace                # Debug build
 cargo build --release --workspace      # Release build
 
 # Lint & Format
@@ -23,17 +23,13 @@ cargo test --doc                       # Doc-tests only
 # Documentation (CI enforces 100% coverage)
 RUSTDOCFLAGS="-D missing_docs" cargo doc --workspace --no-deps
 
-# Firmware (cross-compilation, excluded from workspace)
-cargo build -p sakaloka-firmware --target thumbv7em-none-eabihf
-
 # Docker
 docker compose up -d                   # Start all services
-docker compose up -d surrealdb qdrant zenoh  # Start infra only
 ```
 
 ## Environment Setup
 
-Copy `.env.example` to `.env`. Required for tests: `SAKALOKA_JWT_SECRET` (min 32 chars). SurrealDB migrations live in `libs/data/surql/` and must be applied in order.
+Copy `.env.example` to `.env`. Required for tests: `SAKALOKA_JWT_SECRET` (min 32 chars).
 
 ## Architecture
 
@@ -41,20 +37,12 @@ This is a Rust workspace ("planet model") where each service maps to a celestial
 
 **Apps:**
 - `apps/api` (Earth) — Axum 0.8 REST API. Entry point for all client requests. Routes: `/health`, `/auth/*`, `/entity/product/*`
-- `apps/ockam` (Mars) — Ockam secure transport broker (scaffold, full impl Sprint 12)
-- `apps/firmware` (Mercury) — RTIC bare-metal for ARM Cortex-M4, `no_std`. Excluded from workspace build
+- `apps/venus` (Venus) — React + Tauri desktop app
 
 **Libraries:**
 - `libs/core` — Domain types (`User`, `Product`), constants, traits. No business logic, no async
 - `libs/secure` — **Single source of truth for all IAM**: Argon2id hashing, JWT (HS256 user + service tokens), RBAC (`Role`/`Scope` enums), `RequireScope` Axum middleware layer, newtype wrappers (`EmailAddress`, `UserId`, etc.)
-- `libs/data` — Database clients: `SurrealClient` (HTTP driver), `ZenohClient` (pub/sub), `QdrantClient` (vector search)
-- `libs/ai` — Burn 0.16 local inference engine. No HTTP, Zenoh-only
-- `libs/hal` — Hardware abstraction layer, `no_std` compatible
-
-**External services** (Docker Compose, all on `127.0.0.1:5xxxx`):
-- SurrealDB (:58000) — graph/document DB, SCHEMAFULL schema, JWT auth
-- Zenoh (:57447) — pub/sub with per-planet ACLs, topic scheme: `sakaloka/{planet}/{entity}/{event}`
-- Qdrant (:56333) — vector search with scoped API keys
+- `libs/data` — PostgreSQL client via SQLx
 
 ## Iron Curtain Standards
 
@@ -74,21 +62,19 @@ router.route("/{id}", put(handler).route_layer(RequireScope::new(Scope::EntityWr
 
 **Auth flow:** Bearer token → `auth_middleware` extracts/validates via `libs/secure` → injects `UserClaims` into request extensions → `RequireScope` layer checks scopes.
 
-**Database queries** always use parameterized SurrealQL:
+**Database queries** always use parameterized SQLx:
 ```rust
-db.query("SELECT * FROM user WHERE username = $username LIMIT 1")
-  .bind(("username", username))
+sqlx::query_as("SELECT * FROM users WHERE email = $1 LIMIT 1")
+  .bind(&email)
 ```
 
 ## Port Allocation
 
-All external ports use the `5xxxx` scheme to avoid conflicts. Internal ports are standard (3000, 4000, 8000, etc.). See `docker-compose.yml` for the full mapping.
+All external ports use the `5xxxx` scheme to avoid conflicts. Internal ports are standard (3000, 4000, 8000, etc.). See `docker-compose.yml` for the full mapping. The Earth API maps `127.0.0.1:53000 → 3000`.
 
 ## Decision Tree: Which Crate?
 
 - Auth/JWT/RBAC/password/tokens → `libs/secure` (never elsewhere)
 - Domain types/constants → `libs/core`
-- Database/messaging/vector queries → `libs/data`
-- AI/embeddings → `libs/ai`
+- Database queries → `libs/data`
 - HTTP routes/controllers → `apps/api`
-- Hardware/sensor interfaces → `libs/hal`

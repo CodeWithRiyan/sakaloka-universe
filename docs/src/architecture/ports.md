@@ -9,11 +9,6 @@ All Sakaloka-Universe services bind to `127.0.0.1` on ports in the `5xxxx` range
 | Planet | Service | External Port | Internal Port |
 |--------|---------|--------------|--------------|
 | 🌍 Earth | Axum REST API | `127.0.0.1:53000` | `3000` |
-| 🔴 Mars | Ockam secure channel | `127.0.0.1:54000` | `4000` |
-| 🪐 Saturn | Eclipse Zenoh router | `127.0.0.1:57447` | `7447` |
-| 🔵 Uranus | Qdrant vector DB | `127.0.0.1:56333` | `6333` |
-| 🪐 Jupiter | SurrealDB | `127.0.0.1:58000` | `8000` |
-| 🔮 Neptune | Burn AI | *(no HTTP)* | *(Zenoh only)* |
 
 ## Port Conflict Check
 
@@ -31,5 +26,5 @@ This checks each Sakaloka port and distinguishes between:
 ## Why `127.0.0.1`?
 
 Binding to `127.0.0.1` (loopback) means the service is only reachable from the same machine.
-This is a critical security boundary — production containers sit behind Ockam (Mars) secure
-channels, never exposed to raw internet traffic.
+This is a critical security boundary. Production containers sit behind a reverse proxy,
+never exposed to raw internet traffic.

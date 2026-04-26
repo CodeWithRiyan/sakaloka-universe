@@ -1,0 +1,80 @@
+name: CD - Build & Deploy
+
+on:
+  push:
+    branches: [dev, main, demo, prod]
+
+env:
+  REGISTRY: git.sakaloka.id
+  IMAGE_NAME: riyan/pos-damai-rust
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    runs-on: docker
+    container: { image: alpine:3.20 }
+    outputs:
+      image_tag: ${{ steps.map.outputs.image_tag }}
+      env_label: ${{ steps.map.outputs.env_label }}
+      build_profile: ${{ steps.map.outputs.build_profile }}
+    steps:
+      - run: apk add --no-cache nodejs
+      - id: map
+        shell: sh
+        run: |
+          # p = cargo profile; `release` keeps symbols for dev debugging,
+          # `release-lean` (LTO + strip + panic=abort) is used for sit/demo/prod.
+          case "${{ github.ref_name }}" in
+            dev)  t=dev;  l=DEV;  p=release      ;;
+            main) t=sit;  l=SIT;  p=release-lean ;;
+            demo) t=demo; l=DEMO; p=release-lean ;;
+            prod) t=prod; l=PROD; p=release-lean ;;
+            *) echo "Unsupported branch"; exit 1 ;;
+          esac
+          {
+            echo "image_tag=$t"
+            echo "env_label=$l"
+            echo "build_profile=$p"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: setup
+    runs-on: docker
+    container:
+      image: docker:27-cli
+    permissions: { contents: read, packages: write }
+    steps:
+      - run: apk add --no-cache git nodejs
+      - uses: https://github.com/actions/checkout@v4
+      - run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login "$REGISTRY" -u "${{ github.repository_owner }}" --password-stdin
+      - run: |
+          docker build \
+            --build-arg "BUILD_PROFILE=${{ needs.setup.outputs.build_profile }}" \
+            -t "$REGISTRY/$IMAGE_NAME:${{ needs.setup.outputs.image_tag }}" .
+      - run: docker push "$REGISTRY/$IMAGE_NAME:${{ needs.setup.outputs.image_tag }}"
+
+  deploy:
+    needs: [setup, build]
+    runs-on: docker
+    container:
+      image: docker:27-cli
+      volumes:
+        - /srv/apps:/srv/apps
+    permissions: { contents: read, packages: read }
+    steps:
+      - run: apk add --no-cache nodejs
+      - run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login "$REGISTRY" -u "${{ github.repository_owner }}" --password-stdin
+      - name: Deploy
+        env:
+          IMAGE_TAG: ${{ needs.setup.outputs.image_tag }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          cd "$DEPLOY_PATH"
+          docker compose --env-file ".env.$IMAGE_TAG" pull
+          docker compose --env-file ".env.$IMAGE_TAG" \
+            -p "$(basename "$DEPLOY_PATH")-$IMAGE_TAG" \
+            up -d --remove-orphans
+          docker image prune -f

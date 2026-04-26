@@ -3,7 +3,7 @@
 **Sakaloka-Universe** is a cloud-native, AI-powered knowledge management platform built by
 **PT Riyan Solusi Teknologi**.
 
-It uses a **8-planet microservice architecture** where every component has a single,
+It uses a **planet-model architecture** where every component has a single,
 well-defined responsibility. Communication between planets is strictly typed and authenticated.
 
 ## Quick Start
@@ -34,10 +34,4 @@ curl -s http://127.0.0.1:53000/health | python3 -m json.tool
 | Planet | Role | Port |
 |--------|------|------|
 | 🌍 Earth | REST API (Axum) | `127.0.0.1:53000` |
-| 🔴 Mars | Ockam secure channels | `127.0.0.1:54000` |
-| 🪐 Saturn | Zenoh pub/sub bus | `127.0.0.1:57447` |
-| 🔵 Uranus | Qdrant vector search | `127.0.0.1:56333` |
-| 🪐 Jupiter | SurrealDB data store | `127.0.0.1:58000` |
-| 🔮 Neptune | Burn AI inference | *(no HTTP)* |
-| 🌸 Venus | React + Tauri desktop | *(no port)* |
-| ☿ Mercury | RTIC firmware | *(embedded)* |
+| 🌸 Venus | React + Tauri desktop | *(localhost:5173)* |

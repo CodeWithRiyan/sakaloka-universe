@@ -1,9 +1,11 @@
 [package]
 name = "sakaloka-api"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2021"
 description = "Sakaloka-Universe — Earth: Axum REST API server with PostgreSQL"
 license = "MIT"
+
+default-run = "sakaloka-api"
 
 [[bin]]
 name = "sakaloka-api"
@@ -35,9 +37,9 @@ tower       = "0.5"
 tower-http  = { version = "0.6", features = ["trace", "cors"] }
 axum-extra  = { version = "0.10", features = ["multipart"] }
 
-# Swagger / OpenAPI
+# OpenAPI
 utoipa = { version = "5", features = ["axum_extras", "chrono", "uuid"] }
-utoipa-swagger-ui = { version = "9", features = ["axum"] }
+utoipa-scalar = { version = "0.3", features = ["axum"] }
 
 # Argon2 for password hashing
 argon2 = { workspace = true }

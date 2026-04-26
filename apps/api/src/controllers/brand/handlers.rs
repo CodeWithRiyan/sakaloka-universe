@@ -15,6 +15,16 @@ use crate::views::{
     PaginationParams,
 };
 
+#[utoipa::path(
+    get,
+    path = "/api/products/brands",
+    tag = "Brands",
+    params(PaginationParams),
+    responses(
+        (status = 200, description = "Success", body = PaginatedResponse<BrandResponse>)
+    ),
+    security(("bearer" = []))
+)]
 /// `GET /api/products/brands` — list brands with pagination and search.
 pub async fn list(
     State(state): State<AppState>,
@@ -51,6 +61,17 @@ pub async fn list(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/products/brands/{id}",
+    tag = "Brands",
+    params(("id" = String, Path, description = "Brand ID")),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<BrandResponse>),
+        (status = 404, description = "Not found", body = crate::views::ErrorResponse)
+    ),
+    security(("bearer" = []))
+)]
 /// `GET /api/products/brands/:id` — fetch a single brand.
 pub async fn show(
     State(state): State<AppState>,
@@ -71,6 +92,17 @@ pub async fn show(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/products/brands",
+    tag = "Brands",
+    request_body = CreateBrandRequest,
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<BrandResponse>),
+        (status = 400, description = "Validation error", body = crate::views::ErrorResponse)
+    ),
+    security(("bearer" = []))
+)]
 /// `POST /api/products/brands` — create a new brand.
 pub async fn create(
     State(state): State<AppState>,
@@ -106,6 +138,18 @@ pub async fn create(
     )))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/products/brands/{id}",
+    tag = "Brands",
+    params(("id" = String, Path, description = "Brand ID")),
+    request_body = UpdateBrandRequest,
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<BrandResponse>),
+        (status = 404, description = "Not found", body = crate::views::ErrorResponse)
+    ),
+    security(("bearer" = []))
+)]
 /// `PATCH /api/products/brands/:id` — update an existing brand.
 pub async fn update(
     State(state): State<AppState>,
@@ -144,6 +188,17 @@ pub async fn update(
     )))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/products/brands/{id}",
+    tag = "Brands",
+    params(("id" = String, Path, description = "Brand ID")),
+    responses(
+        (status = 200, description = "Success"),
+        (status = 404, description = "Not found", body = crate::views::ErrorResponse)
+    ),
+    security(("bearer" = []))
+)]
 /// `DELETE /api/products/brands/:id` — delete a brand.
 pub async fn remove(
     State(state): State<AppState>,

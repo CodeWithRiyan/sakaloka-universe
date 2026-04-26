@@ -6,6 +6,8 @@ use axum::http::{HeaderValue, Method};
 use axum::Router;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
+use utoipa::OpenApi;
+use utoipa_scalar::{Scalar, Servable};
 
 use crate::controllers;
 use crate::middleware::auth_middleware;
@@ -69,15 +71,19 @@ pub fn router(state: AppState) -> Router {
 
     Router::new()
         .route("/health", axum::routing::get(health))
+        .merge(Scalar::with_url("/scalar", crate::docs::ApiDoc::openapi()))
         .nest("/api", api_routes)
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state)
 }
 
-/// Health-check endpoint.
-async fn health() -> &'static str {
-    "ok"
+/// Health-check endpoint returning status and build version.
+async fn health() -> axum::Json<serde_json::Value> {
+    axum::Json(serde_json::json!({
+        "status": "ok",
+        "version": env!("SAKALOKA_VERSION"),
+    }))
 }
 
 /// Runs embedded SQLx migrations against PostgreSQL.

@@ -6,7 +6,7 @@
 
 ## Context
 
-Sakaloka-Universe has multiple components (API server, desktop app, AI inference, IoT gateway)
+Sakaloka-Universe has multiple components (API server, desktop app)
 that share common types and business logic. We needed to decide between:
 
 1. **Separate repositories** — one repo per service
@@ -18,14 +18,13 @@ We chose a **Cargo workspace monorepo** with strict `apps/` and `libs/` separati
 
 ```
 sakaloka-universe/
-├── apps/          ← runnable services (binary crates)
+├── apps/
 │   ├── api/       ← 🌍 Earth — Axum REST API
-│   └── desktop/   ← 🌸 Venus — Tauri + React
-└── libs/          ← shared logic (library crates)
+│   └── venus/     ← 🌸 Venus — React + Tauri desktop
+└── libs/
     ├── core/      ← domain types, traits, constants
     ├── secure/    ← IAM (ONLY place for auth logic)
-    ├── data/      ← database client abstractions
-    └── ai/        ← Burn inference engine
+    └── data/      ← PostgreSQL client via SQLx
 ```
 
 ## Consequences

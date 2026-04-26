@@ -7,6 +7,8 @@
 pub mod app;
 /// HTTP controllers (route handlers).
 pub mod controllers;
+/// OpenAPI document definition.
+pub mod docs;
 /// Unified API error type.
 pub mod error;
 /// Shared helpers used across controllers.

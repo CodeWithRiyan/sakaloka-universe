@@ -21,17 +21,15 @@ COPY apps/api/Cargo.toml apps/api/
 COPY libs/core/Cargo.toml libs/core/
 COPY libs/secure/Cargo.toml libs/secure/
 COPY libs/data/Cargo.toml libs/data/
-COPY libs/ai/Cargo.toml libs/ai/
 
 # Stub source files to cache dependencies
-RUN mkdir -p apps/api/src libs/core/src libs/secure/src libs/data/src libs/ai/src \
+RUN mkdir -p apps/api/src libs/core/src libs/secure/src libs/data/src \
     && echo 'fn main() {}' > apps/api/src/main.rs \
     && echo '' > libs/core/src/lib.rs \
     && echo '' > libs/secure/src/lib.rs \
     && echo '' > libs/data/src/lib.rs \
-    && echo '' > libs/ai/src/lib.rs \
     && cargo build --release --package sakaloka-api 2>/dev/null || true \
-    && rm -rf apps/api/src libs/core/src libs/secure/src libs/data/src libs/ai/src
+    && rm -rf apps/api/src libs/core/src libs/secure/src libs/data/src
 
 # Copy real source
 COPY apps/ apps/

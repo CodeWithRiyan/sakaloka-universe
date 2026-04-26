@@ -16,6 +16,16 @@ use crate::views::{
     ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
+#[utoipa::path(
+    get,
+    path = "/api/products",
+    tag = "Products",
+    params(PaginationParams),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = PaginatedResponse<ProductResponse>)
+    )
+)]
 /// `GET /api/products` — list products with pagination, search, and sorting.
 pub async fn list(
     State(state): State<AppState>,
@@ -103,6 +113,17 @@ pub async fn list(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/products/{id}",
+    tag = "Products",
+    params(("id" = String, Path, description = "Product ID")),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<ProductResponse>),
+        (status = 404, description = "Not found", body = crate::views::ErrorResponse)
+    )
+)]
 /// `GET /api/products/:id` — fetch a single product.
 pub async fn show(
     State(state): State<AppState>,
@@ -164,6 +185,17 @@ pub async fn show(
     Ok(Json(ApiResponse::ok(response, "Product retrieved")))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/products",
+    tag = "Products",
+    request_body = CreateProductRequest,
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<ProductResponse>),
+        (status = 400, description = "Validation error", body = crate::views::ErrorResponse)
+    )
+)]
 /// `POST /api/products` — create a new product.
 pub async fn create(
     State(state): State<AppState>,
@@ -212,6 +244,18 @@ pub async fn create(
     Ok(Json(ApiResponse::created(response, "Product created")))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/products/{id}",
+    tag = "Products",
+    params(("id" = String, Path, description = "Product ID")),
+    request_body = UpdateProductRequest,
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<ProductResponse>),
+        (status = 404, description = "Not found", body = crate::views::ErrorResponse)
+    )
+)]
 /// `PATCH /api/products/:id` — update an existing product.
 pub async fn update(
     State(state): State<AppState>,
@@ -256,6 +300,17 @@ pub async fn update(
     Ok(Json(ApiResponse::ok(response, "Product updated")))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/products/{id}",
+    tag = "Products",
+    params(("id" = String, Path, description = "Product ID")),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success"),
+        (status = 404, description = "Not found", body = crate::views::ErrorResponse)
+    )
+)]
 /// `DELETE /api/products/:id` — soft-delete a product.
 pub async fn remove(
     State(state): State<AppState>,

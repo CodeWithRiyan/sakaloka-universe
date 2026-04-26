@@ -1,30 +1,24 @@
 # Deployment Guide
 
-Sakaloka-Universe deploys to a VPS using Docker Compose with per-environment configurations.
+Sakaloka-Universe deploys to a VPS using Docker Compose with per-environment `.env` files.
 
 ## Environments
 
 | Environment | Trigger | Image Tag | Purpose |
 |-------------|---------|-----------|---------|
-| `dev` | Push to `dev` branch | `sakaloka-api:dev` | Development testing |
-| `sit` | Push to `main` branch | `sakaloka-api:sit` | System integration testing |
-| `demo` | Tag `v*-demo` | `sakaloka-api:demo` | Client demonstrations |
-| `prod` | Tag `v*` (no suffix) | `sakaloka-api:prod` | Production |
+| `dev` | Push to `dev` branch | `dev` | Development testing |
+| `sit` | Push to `main` branch | `sit` | System integration testing |
+| `demo` | Push to `demo` branch | `demo` | Client demonstrations |
+| `prod` | Push to `prod` branch | `prod` | Production |
 
 ## Deployment Files
 
 ```
 deploy/
-├── docker-compose.dev.yml    # Dev environment (single source of truth)
-├── docker-compose.sit.yml    # SIT environment
-├── docker-compose.demo.yml   # Demo environment
-├── docker-compose.prod.yml   # Prod environment
-├── docker-compose.local.yml  # Local testing (build from source)
-├── deploy.sh                 # Deployment script
-├── .env.template             # Environment variable template
-└── config/
-    ├── zenoh-users.demo.dict # Zenoh ACL for demo
-    └── zenoh-users.prod.dict # Zenoh ACL for production
+├── docker-compose.yml    # Single compose file (all environments)
+├── deploy.sh             # Deployment helper script
+├── .env.template         # Environment variable template
+└── .env.{env}            # Per-environment config (not committed)
 ```
 
 ## Deploy Steps
@@ -33,8 +27,8 @@ deploy/
 
 ```bash
 cd deploy
-cp .env.template .env
-# Edit .env with your values
+cp .env.template .env.dev
+# Edit .env.dev with your values
 ```
 
 ### 2. Run Deployment
@@ -48,9 +42,9 @@ bash deploy.sh prod
 ```
 
 The script:
-1. Loads `.env` for the target environment
-2. Pulls the latest image from GHCR
-3. Starts services with `docker compose -f base.yml -f {env}.yml up -d`
+1. Loads `.env.{env}` for the target environment
+2. Pulls the latest images from `git.sakaloka.id` registry
+3. Starts services with `docker compose --env-file .env.{env} -p sakaloka-{env} up -d`
 4. Runs health checks
 
 ### 3. Verify
@@ -64,18 +58,17 @@ docker ps --filter "name=sakaloka"
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
+| `REGISTRY` | Yes | `git.sakaloka.id` | Container registry host |
+| `API_IMAGE` | Yes | `riyan/sakaloka-api` | API image name |
+| `WEB_IMAGE` | Yes | `riyan/sakaloka-pos` | Web image name |
+| `IMAGE_TAG` | Yes | `dev` | Environment tag |
+| `API_HOST_PORT` | Yes | `53000` | API host port |
+| `WEB_HOST_PORT` | Yes | `53040` | Web host port |
+| `NETWORK` | Yes | `net-dev` | Docker network name |
 | `SAKALOKA_JWT_SECRET` | Yes | *(none)* | JWT signing key (min 32 chars) |
-| `SURREALDB_URL` | No | `ws://127.0.0.1:58000` | SurrealDB WebSocket URL |
-| `SURREALDB_USER` | Yes | *(none)* | SurrealDB username |
-| `SURREALDB_PASS` | Yes | *(none)* | SurrealDB password |
-| `PORT` | No | `3000` | API listen port |
-| `CORS_ORIGINS` | No | `http://localhost:5173,http://localhost:1420` | Allowed CORS origins (comma-separated) |
-| `MIGRATIONS_DIR` | No | *(auto from CARGO_MANIFEST_DIR)* | Path to SurrealQL migration files |
+| `DATABASE_URL` | Yes | *(none)* | PostgreSQL connection URL |
+| `CORS_ORIGINS` | No | `http://localhost:5173` | Allowed CORS origins |
 | `RUST_LOG` | No | `info` | Log level |
-| `QDRANT_URL` | No | `http://127.0.0.1:56333` | Qdrant connection URL |
-| `QDRANT_MASTER_KEY` | No | *(none)* | Qdrant API key |
-| `OCKAM_PORT` | No | `4000` | Ockam service port |
-| `SAKALOKA_OCKAM_SECRET` | No | *(none)* | Ockam transport secret |
 
 ## Server Architecture
 
@@ -91,16 +84,15 @@ Cloudflare Tunnel (infra-cloudflared)
 Nginx (infra-nginx) -- reverse proxy
   |
   +-- sakaloka-api:{env}     (Axum REST API)
-  +-- sakaloka-surrealdb     (SurrealDB)
-  +-- sakaloka-zenoh         (Pub/sub)
-  +-- sakaloka-qdrant        (Vector search)
+  +-- sakaloka-pos:{env}     (Venus POS Web)
+  +-- sakaloka-postgres      (PostgreSQL)
 ```
 
 ## CI/CD Integration
 
-GitHub Actions automatically:
-1. Builds the Docker image on push/tag
-2. Pushes to `ghcr.io/codewithriyan/sakaloka-api:{env}`
-3. SSHs into the server and runs `deploy.sh {env}`
+Forgejo Actions automatically:
+1. Builds Docker images on push to `dev`/`main`/`demo`/`prod`
+2. Pushes to `git.sakaloka.id/riyan/sakaloka-api:{env}` and `sakaloka-pos:{env}`
+3. Deploys via volume-mounted compose on the VPS
 
 See [CI/CD Pipeline](./ci.md) for workflow details.

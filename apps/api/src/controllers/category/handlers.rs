@@ -15,6 +15,16 @@ use crate::views::{
     PaginationParams,
 };
 
+#[utoipa::path(
+    get,
+    path = "/api/products/categories",
+    tag = "Categories",
+    params(PaginationParams),
+    responses(
+        (status = 200, description = "Success", body = PaginatedResponse<CategoryResponse>)
+    ),
+    security(("bearer" = []))
+)]
 /// `GET /api/products/categories` — list categories with pagination and
 /// search.
 pub async fn list(
@@ -52,6 +62,17 @@ pub async fn list(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/products/categories/{id}",
+    tag = "Categories",
+    params(("id" = String, Path, description = "Category ID")),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<CategoryResponse>),
+        (status = 404, description = "Not found", body = crate::views::ErrorResponse)
+    ),
+    security(("bearer" = []))
+)]
 /// `GET /api/products/categories/:id` — fetch a single category.
 pub async fn show(
     State(state): State<AppState>,
@@ -72,6 +93,17 @@ pub async fn show(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/products/categories",
+    tag = "Categories",
+    request_body = CreateCategoryRequest,
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<CategoryResponse>),
+        (status = 400, description = "Validation error", body = crate::views::ErrorResponse)
+    ),
+    security(("bearer" = []))
+)]
 /// `POST /api/products/categories` — create a new category.
 pub async fn create(
     State(state): State<AppState>,
@@ -123,6 +155,18 @@ pub async fn create(
     )))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/products/categories/{id}",
+    tag = "Categories",
+    params(("id" = String, Path, description = "Category ID")),
+    request_body = UpdateCategoryRequest,
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<CategoryResponse>),
+        (status = 404, description = "Not found", body = crate::views::ErrorResponse)
+    ),
+    security(("bearer" = []))
+)]
 /// `PATCH /api/products/categories/:id` — update an existing category.
 pub async fn update(
     State(state): State<AppState>,
@@ -171,6 +215,17 @@ pub async fn update(
     )))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/products/categories/{id}",
+    tag = "Categories",
+    params(("id" = String, Path, description = "Category ID")),
+    responses(
+        (status = 200, description = "Success"),
+        (status = 404, description = "Not found", body = crate::views::ErrorResponse)
+    ),
+    security(("bearer" = []))
+)]
 /// `DELETE /api/products/categories/:id` — delete a category.
 pub async fn remove(
     State(state): State<AppState>,

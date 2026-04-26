@@ -1,0 +1,72 @@
+name: CI
+on:
+  push:
+    branches:
+      - dev
+      - main
+      - demo
+      - prod
+  pull_request:
+
+env:
+  RUST_TOOLCHAIN: 1.93.0   # keep in sync with rust-toolchain.toml
+  TOOLCHAIN_PROFILE: minimal
+
+jobs:
+  rustfmt:
+    name: Check Style
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the code
+        uses: https://github.com/actions/checkout@v4
+
+      - name: Install Rust
+        # Use the full GitHub URL here
+        uses: https://github.com/dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt
+
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: Run Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the code
+        uses: https://github.com/actions/checkout@v4
+
+      - name: Install Rust
+        uses: https://github.com/dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: clippy
+
+      - name: Setup Rust cache
+        uses: https://github.com/Swatinem/rust-cache@v2
+
+      - name: Run cargo clippy
+        run: cargo clippy --all-features -- -D warnings -W clippy::pedantic -W clippy::nursery -W rust-2018-idioms
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    # No postgres service — the `tests/` integration suite is gated behind the
+    # `integration-tests` feature (see Cargo.toml). CI runs only fast, db-free
+    # unit tests on library + bins. Run the full suite locally with:
+    #   cargo test --features integration-tests
+    steps:
+      - name: Checkout the code
+        uses: https://github.com/actions/checkout@v4
+
+      - name: Install Rust
+        uses: https://github.com/dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Setup Rust cache
+        uses: https://github.com/Swatinem/rust-cache@v2
+
+      - name: Run cargo test (unit tests only — integration suite is feature-gated)
+        run: cargo test --lib --bins

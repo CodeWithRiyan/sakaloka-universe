@@ -13,6 +13,16 @@ use crate::views::{
     ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
+#[utoipa::path(
+    get,
+    path = "/api/users",
+    tag = "Users",
+    params(PaginationParams),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = PaginatedResponse<UserResponse>)
+    )
+)]
 /// `GET /api/users` — list users with pagination and search.
 pub async fn list(
     State(state): State<AppState>,
@@ -49,6 +59,17 @@ pub async fn list(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/users/{id}",
+    tag = "Users",
+    params(("id" = String, Path, description = "User ID")),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<UserResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `GET /api/users/:id` — fetch a single user.
 pub async fn show(
     State(state): State<AppState>,
@@ -69,6 +90,17 @@ pub async fn show(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/users",
+    tag = "Users",
+    request_body = CreateUserRequest,
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<UserResponse>),
+        (status = 400, description = "Validation error")
+    )
+)]
 /// `POST /api/users` — create a new user within the current organization.
 pub async fn create(
     State(state): State<AppState>,
@@ -134,6 +166,18 @@ pub async fn create(
     )))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/users/{id}",
+    tag = "Users",
+    params(("id" = String, Path, description = "User ID")),
+    request_body = UpdateUserRequest,
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<UserResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `PATCH /api/users/:id` — update an existing user.
 pub async fn update(
     State(state): State<AppState>,
@@ -201,6 +245,17 @@ pub async fn update(
     )))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/users/{id}",
+    tag = "Users",
+    params(("id" = String, Path, description = "User ID")),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success"),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `DELETE /api/users/:id` — deactivate a user.
 pub async fn remove(
     State(state): State<AppState>,

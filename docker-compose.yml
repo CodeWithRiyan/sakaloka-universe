@@ -1,6 +1,5 @@
 # =============================================================
 # 🌌 Sakaloka-Universe — Docker Compose (Development)
-# PRD v1.4 — Section 2.2
 #
 # Port scheme: 5xxxx external → standard internal
 # ALL bindings use 127.0.0.1 — NEVER 0.0.0.0
@@ -11,7 +10,6 @@ services:
   # ─────────────────────────────────────────────────────────────
   # 🌍 Earth — Axum REST API (apps/api)
   # External: 127.0.0.1:53000 → 3000
-  # ─────────────────────────────────────────────────────────────
   # ─────────────────────────────────────────────────────────────
   # 🐘 PostgreSQL — primary relational database (external infra)
   # Connect to: infra-dev-postgres (Docker network: net-dev)
@@ -38,116 +36,9 @@ services:
       - sakaloka-net
       - net-dev
 
-  # ─────────────────────────────────────────────────────────────
-  # 🔴 Mars — Ockam secure channel broker (apps/ockam)
-  # External: 127.0.0.1:54000 → 4000
-  # All inter-planet traffic routes through here (Sprint 12).
-  # ─────────────────────────────────────────────────────────────
-  mars-ockam:
-    build:
-      context: .
-      dockerfile: apps/ockam/Dockerfile
-    ports:
-      - "127.0.0.1:54000:4000"
-    environment:
-      - RUST_LOG=info
-      - SAKALOKA_JWT_SECRET=${SAKALOKA_JWT_SECRET}
-      - SAKALOKA_OCKAM_SECRET=${SAKALOKA_OCKAM_SECRET}
-      - OCKAM_PORT=4000
-    healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/4000 && echo ok >&3"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-    networks:
-      - sakaloka-net
-
-  # ─────────────────────────────────────────────────────────────
-  # 🪐 Jupiter — SurrealDB (graph + document DB)
-  # External: 127.0.0.1:58000 → 8000
-  # Note: surrealdb:latest is a distroless image (no shell/curl).
-  #       Use the surreal CLI that IS present in the image.
-  # ─────────────────────────────────────────────────────────────
-  surrealdb:
-    image: surrealdb/surrealdb:v3.0.4
-    command: start --log info --user ${SURREALDB_USER:-root} --pass ${SURREALDB_PASS:-sakaloka-dev-password} memory
-    ports:
-      - "127.0.0.1:58000:8000"
-    healthcheck:
-      # is-ready default endpoint is ws://localhost:8000 — no flags needed
-      test: ["CMD", "/surreal", "is-ready", "--log", "none"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-    networks:
-      - sakaloka-net
-
-  # ─────────────────────────────────────────────────────────────
-  # 🪐 Saturn — Eclipse Zenoh (pub/sub messaging bus)
-  # External: 127.0.0.1:57447 → 7447
-  # Note: zenoh image is distroless — use a simple TCP probe via
-  #       the fact that the port being open means it's ready.
-  # ─────────────────────────────────────────────────────────────
-  zenoh:
-    image: eclipse/zenoh:1.0.0
-    ports:
-      - "127.0.0.1:57447:7447"
-    volumes:
-      - ./config/zenoh.json5:/zenoh.json5:ro
-      - ./config/zenoh-users.dict:/zenoh-users.dict:ro
-    command: ["--config", "/zenoh.json5", "--no-multicast-scouting"]
-    healthcheck:
-      # zenoh binary is at / — use it to print version as liveness probe
-      test: ["CMD", "/zenohd", "--version"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
-    restart: unless-stopped
-    networks:
-      - sakaloka-net
-
-  # ─────────────────────────────────────────────────────────────
-  # 🔵 Uranus — Qdrant (vector search engine)
-  # External: 127.0.0.1:56333 → 6333 (REST), 127.0.0.1:56334 → 6334 (gRPC)
-  # Note: qdrant image ships with /bin/sh and a qdrant binary.
-  # ─────────────────────────────────────────────────────────────
-  qdrant:
-    image: qdrant/qdrant:latest
-    ports:
-      - "127.0.0.1:56333:6333"
-      - "127.0.0.1:56334:6334"
-    environment:
-      - QDRANT__SERVICE__API_KEY=${QDRANT_MASTER_KEY:-sakaloka-dev-key}
-    volumes:
-      - qdrant-data:/qdrant/storage
-    healthcheck:
-      # qdrant ships a /bin/sh and wget in its debian-slim base
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/6333 && echo -e 'GET /readyz HTTP/1.0\r\n\r\n' >&3 && cat <&3 | grep -q '200'"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-    networks:
-      - sakaloka-net
-
-  # ─────────────────────────────────────────────────────────────
-  # 🔮 Neptune — Burn AI (no HTTP, Zenoh only)
-  # No ports exposed — communicates ONLY via Saturn (Zenoh).
-  # (Neptune scaffolded in Sprint 7)
-  # ─────────────────────────────────────────────────────────────
-
 # ─────────────────────────────────────────────────────────────
-# Volumes & Networks
+# Networks
 # ─────────────────────────────────────────────────────────────
-volumes:
-  qdrant-data:
-    driver: local
 
 networks:
   sakaloka-net:

@@ -18,6 +18,17 @@ use crate::views::{
 
 use super::helpers::{build_user_profile, issue_tokens_and_session};
 
+#[utoipa::path(
+    post,
+    path = "/api/auth/login",
+    tag = "Auth",
+    security(()),
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<LoginResponse>),
+        (status = 401, description = "Invalid credentials", body = crate::views::ErrorResponse)
+    )
+)]
 /// `POST /api/auth/login` — authenticate a user and return tokens.
 pub async fn login(
     State(state): State<AppState>,
@@ -148,6 +159,17 @@ pub async fn login(
     Ok(Json(ApiResponse::ok(response, "Login successful")))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/auth/register",
+    tag = "Auth",
+    security(()),
+    request_body = RegisterRequest,
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<LoginResponse>),
+        (status = 400, description = "Validation error", body = crate::views::ErrorResponse)
+    )
+)]
 /// `POST /api/auth/register` — create a new user and organization.
 pub async fn register(
     State(state): State<AppState>,
@@ -294,6 +316,17 @@ async fn create_account_entities(
     Ok((org_id, role, user_id))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/auth/refresh",
+    tag = "Auth",
+    security(()),
+    request_body = RefreshRequest,
+    responses(
+        (status = 200, description = "Success"),
+        (status = 501, description = "Not implemented", body = crate::views::ErrorResponse)
+    )
+)]
 /// `POST /api/auth/refresh` — exchange a refresh token for new tokens.
 ///
 /// Returns 501 Not Implemented until the full rotation flow is wired up.
@@ -312,6 +345,16 @@ pub async fn refresh(
     Err(ApiError::NotImplemented)
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/auth/profile",
+    tag = "Auth",
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<UserProfile>),
+        (status = 401, description = "Unauthorized", body = crate::views::ErrorResponse)
+    )
+)]
 /// `GET /api/auth/profile` — return the authenticated user's profile.
 pub async fn profile(
     State(state): State<AppState>,

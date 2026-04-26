@@ -1,6 +1,6 @@
 //! POS (Point of Sale) controller — menu, orders, and order management.
 
-mod handlers;
+pub(crate) mod handlers;
 mod helpers;
 mod routes;
 

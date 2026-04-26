@@ -13,24 +13,11 @@
 //! Database and messaging client abstractions for Sakaloka-Universe.
 //!
 //! ## Backends
-//! - **PostgreSQL** (default) — production database via SQLx
-//! - **SurrealDB** — legacy, behind `surrealdb-backend` feature flag
-//! - **Qdrant** — vector search, behind `qdrant` feature flag
-//! - **Zenoh** — pub/sub messaging, behind `zenoh` feature flag
+//! - **PostgreSQL** — production database via SQLx
 //!
 //! ## Rules
 //! - Always use the authenticated client — never embed raw credentials.
 //! - Use parameterized queries — never interpolate user input into SQL.
 
-/// PostgreSQL client module (default database backend).
+/// PostgreSQL client module.
 pub mod postgres;
-
-#[cfg(feature = "qdrant")]
-/// Qdrant vector search client.
-pub mod qdrant;
-#[cfg(feature = "surrealdb-backend")]
-/// Legacy SurrealDB client module.
-pub mod surreal;
-#[cfg(feature = "zenoh")]
-/// Eclipse Zenoh pub/sub messaging client.
-pub mod zenoh;

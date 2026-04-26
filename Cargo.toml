@@ -2,16 +2,11 @@
 resolver = "2"
 members = [
     "apps/api",
-    "apps/ockam",
     "apps/venus/src-tauri",
     "libs/core",
     "libs/data",
     "libs/secure",
-    "libs/ai",
-    "libs/hal",
 ]
-# apps/firmware requires cross-compilation: cargo build -p sakaloka-firmware --target thumbv7em-none-eabihf
-exclude = ["apps/firmware"]
 
 [workspace.dependencies]
 # Async runtime
@@ -47,23 +42,7 @@ chrono       = { version = "0.4", features = ["serde"] }
 # Database — PostgreSQL via SQLx
 sqlx        = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "json"] }
 
-# Legacy SurrealDB (feature-gated in libs/data, will be removed)
-surrealdb   = { version = "3", features = ["protocol-ws", "protocol-http", "kv-mem"] }
-surrealdb-types = "3"
-surrealdb-types-derive = "3"
-
-# Vector DB
-qdrant-client = "1"
-
-# Messaging
-zenoh       = "1"
-
-# AI / Embeddings
-burn        = { version = "0.16", features = ["ndarray"] }
-
 # Internal crates
 sakaloka-core   = { path = "libs/core" }
 sakaloka-secure = { path = "libs/secure" }
 sakaloka-data   = { path = "libs/data" }
-sakaloka-ai     = { path = "libs/ai" }
-sakaloka-hal    = { path = "libs/hal" }

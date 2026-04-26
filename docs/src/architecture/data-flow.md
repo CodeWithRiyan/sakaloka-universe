@@ -19,13 +19,13 @@ Earth (Axum API)
   +-- 5. RBAC scope guard (RequireScope layer)
   +-- 6. Handler execution
   |     +-- Read claims from Extension<UserClaims>
-  |     +-- Call SurrealClient methods (parameterized SurrealQL)
+  |     +-- Call PostgreSQL via SQLx (parameterized queries)
   |     +-- Return Json<ApiResponse<T>>
   |
   v
-Jupiter (SurrealDB)
+PostgreSQL
   |
-  +-- SurrealQL over WebSocket (ws://127.0.0.1:58000)
+  +-- PostgreSQL via SQLx connection pool
 ```
 
 ## Authentication Flow
@@ -35,12 +35,12 @@ Jupiter (SurrealDB)
 ```
 Client --POST /api/auth/login--> Earth
   |
-  +-- 1. Find user by email (SurrealDB)
+  +-- 1. Find user by email (PostgreSQL)
   +-- 2. Verify password (Argon2id via libs/secure)
   +-- 3. Load organization + role
   +-- 4. Issue access token (JWT HS256, 15 min TTL)
   +-- 5. Generate refresh token (UUID, SHA-256 hashed)
-  +-- 6. Persist session record (SurrealDB)
+  +-- 6. Persist session record (PostgreSQL)
   +-- 7. Update last_login_at (best-effort)
   +-- 8. Return { access_token, refresh_token, user_profile }
 ```
@@ -60,15 +60,15 @@ Client --GET /api/products (Bearer token)--> Earth
 
 ## Database Query Pattern
 
-All database queries use **parameterized SurrealQL** to prevent injection:
+All database queries use **parameterized SQL** to prevent injection:
 
 ```rust
 // Good - parameterized
-db.query("SELECT * FROM user WHERE email = $email LIMIT 1")
-  .bind(("email", email))
+sqlx::query_as("SELECT * FROM users WHERE email = $1 LIMIT 1")
+  .bind(&email)
 
 // Forbidden - string interpolation
-db.query(&format!("SELECT * FROM user WHERE email = '{email}'"))
+sqlx::query(&format!("SELECT * FROM users WHERE email = '{email}'"))
 ```
 
 ## Batch Fetch Pattern (N+1 Prevention)
@@ -86,15 +86,3 @@ List endpoints that enrich items with related data use batch fetching:
 This is used in: menu endpoint (products -> categories), product list (products -> categories + brands),
 and order creation (items -> products).
 
-## Pub/Sub Flow (Saturn/Zenoh)
-
-```
-Earth --publish--> Saturn (Zenoh)
-                     |
-                     +-- Topic: sakaloka/{planet}/{entity}/{event}
-                     |   Example: sakaloka/earth/order/created
-                     |
-                     +--subscribe--> Neptune (AI inference)
-```
-
-Zenoh topics follow the scheme: `sakaloka/{planet}/{entity}/{event}`

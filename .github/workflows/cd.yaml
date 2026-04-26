@@ -1,0 +1,225 @@
+# =============================================================
+# Sakaloka-Universe — Build & Deploy (Forgejo Actions)
+#
+# Builds API + Venus Web Docker images, pushes to Forgejo
+# registry, deploys to VPS via volume-mounted compose.
+#
+# Version scheme: {prod}.{demo}.{sit}.{dev}
+# Each environment bumps its digit and resets lower ones.
+# =============================================================
+
+name: CD
+
+on:
+  push:
+    branches: [dev, main, demo, prod]
+
+env:
+  REGISTRY: git.sakaloka.id
+  API_IMAGE: riyan/sakaloka-api
+  WEB_IMAGE: riyan/sakaloka-pos
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  # ── Setup: resolve environment, bump version ────────────────
+  setup:
+    runs-on: docker
+    container: { image: alpine:3.20 }
+    outputs:
+      image_tag: ${{ steps.map.outputs.image_tag }}
+      env_label: ${{ steps.map.outputs.env_label }}
+      version: ${{ steps.bump.outputs.version }}
+      changed_api: ${{ steps.changes.outputs.api }}
+      changed_web: ${{ steps.changes.outputs.web }}
+    steps:
+      - run: apk add --no-cache git bash nodejs
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          fetch-depth: 2
+          token: ${{ secrets.REGISTRY_TOKEN }}
+
+      - id: map
+        shell: sh
+        run: |
+          case "${{ github.ref_name }}" in
+            dev)  t=dev;  l=DEV  ;;
+            main) t=sit;  l=SIT  ;;
+            demo) t=demo; l=DEMO ;;
+            prod) t=prod; l=PROD ;;
+            *) echo "Unsupported branch"; exit 1 ;;
+          esac
+          {
+            echo "image_tag=$t"
+            echo "env_label=$l"
+          } >> "$GITHUB_OUTPUT"
+
+      - id: bump
+        shell: bash
+        run: |
+          chmod +x scripts/bump-version.sh
+          VERSION=$(./scripts/bump-version.sh "${{ steps.map.outputs.image_tag }}")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Bumped to $VERSION"
+
+      - name: Commit version bump
+        shell: sh
+        run: |
+          git config user.name "Forgejo CI"
+          git config user.email "ci@sakaloka.id"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.version }} [${{ steps.map.outputs.env_label }}]"
+          git tag "v${{ steps.bump.outputs.version }}"
+          git push origin "${{ github.ref_name }}" --tags
+
+      - id: changes
+        shell: sh
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+          if [ -z "$CHANGED" ]; then
+            echo "api=true"  >> "$GITHUB_OUTPUT"
+            echo "web=true"  >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          API=false; WEB=false
+          echo "$CHANGED" | grep -qE '^(apps/api/|libs/|Cargo)' && API=true
+          echo "$CHANGED" | grep -qE '^apps/venus/'             && WEB=true
+          echo "$CHANGED" | grep -qE '^deploy/'                 && API=true && WEB=true
+
+          echo "api=$API"  >> "$GITHUB_OUTPUT"
+          echo "web=$WEB"  >> "$GITHUB_OUTPUT"
+
+  # ── Build API Docker image ──────────────────────────────────
+  build-api:
+    needs: setup
+    if: needs.setup.outputs.changed_api == 'true'
+    runs-on: docker
+    container: { image: docker:27-cli }
+    steps:
+      - run: apk add --no-cache git nodejs
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Login to Forgejo registry
+        run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login "$REGISTRY" -u "${{ github.repository_owner }}" --password-stdin
+
+      - name: Build API image
+        run: |
+          docker build \
+            -f apps/api/Dockerfile \
+            --build-arg "APP_VERSION=${{ needs.setup.outputs.version }}" \
+            -t "$REGISTRY/$API_IMAGE:${{ needs.setup.outputs.version }}" \
+            -t "$REGISTRY/$API_IMAGE:${{ needs.setup.outputs.image_tag }}" \
+            .
+
+      - name: Push API image
+        run: |
+          docker push "$REGISTRY/$API_IMAGE:${{ needs.setup.outputs.version }}"
+          docker push "$REGISTRY/$API_IMAGE:${{ needs.setup.outputs.image_tag }}"
+
+  # ── Build Venus Web Docker image ────────────────────────────
+  build-web:
+    needs: setup
+    if: needs.setup.outputs.changed_web == 'true'
+    runs-on: docker
+    container: { image: docker:27-cli }
+    steps:
+      - run: apk add --no-cache git nodejs
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Login to Forgejo registry
+        run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login "$REGISTRY" -u "${{ github.repository_owner }}" --password-stdin
+
+      - name: Build Venus Web image
+        run: |
+          docker build \
+            --build-arg "ENV=${{ needs.setup.outputs.image_tag }}" \
+            -f apps/venus/Dockerfile \
+            -t "$REGISTRY/$WEB_IMAGE:${{ needs.setup.outputs.version }}" \
+            -t "$REGISTRY/$WEB_IMAGE:${{ needs.setup.outputs.image_tag }}" \
+            apps/venus
+
+      - name: Push Venus Web image
+        run: |
+          docker push "$REGISTRY/$WEB_IMAGE:${{ needs.setup.outputs.version }}"
+          docker push "$REGISTRY/$WEB_IMAGE:${{ needs.setup.outputs.image_tag }}"
+
+  # ── Deploy to VPS ───────────────────────────────────────────
+  deploy:
+    needs: [setup, build-api, build-web]
+    if: always() && needs.setup.result == 'success' && (needs.build-api.result == 'success' || needs.build-api.result == 'skipped') && (needs.build-web.result == 'success' || needs.build-web.result == 'skipped') && !(needs.build-api.result == 'skipped' && needs.build-web.result == 'skipped')
+    runs-on: docker
+    container:
+      image: docker:27-cli
+      volumes:
+        - /srv/apps:/srv/apps
+    steps:
+      - run: apk add --no-cache nodejs curl
+      - name: Login to Forgejo registry
+        run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login "$REGISTRY" -u "${{ github.repository_owner }}" --password-stdin
+
+      - name: Deploy
+        env:
+          IMAGE_TAG: ${{ needs.setup.outputs.image_tag }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          cd "$DEPLOY_PATH"
+          docker compose --env-file ".env.$IMAGE_TAG" pull
+          docker compose --env-file ".env.$IMAGE_TAG" \
+            -p "sakaloka-$IMAGE_TAG" \
+            up -d --remove-orphans
+          docker image prune -f
+
+      - name: Health check
+        env:
+          IMAGE_TAG: ${{ needs.setup.outputs.image_tag }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          . "$DEPLOY_PATH/.env.$IMAGE_TAG"
+          API_URL="http://localhost:${API_HOST_PORT:-53000}/health"
+          for i in $(seq 1 30); do
+            if curl -sf "$API_URL" > /dev/null 2>&1; then
+              echo "API is healthy!"
+              exit 0
+            fi
+            echo "  Attempt $i/30..."
+            sleep 5
+          done
+          echo "API health check failed after 150s"
+          exit 1
+
+  # ── Create Forgejo Release ──────────────────────────────────
+  release:
+    needs: [setup, deploy]
+    if: needs.deploy.result == 'success'
+    runs-on: docker
+    container: { image: alpine:3.20 }
+    steps:
+      - run: apk add --no-cache curl jq
+      - name: Create release
+        env:
+          VERSION: ${{ needs.setup.outputs.version }}
+          ENV_LABEL: ${{ needs.setup.outputs.env_label }}
+          FORGEJO_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+        run: |
+          IS_PRE=true
+          [ "$ENV_LABEL" = "PROD" ] && IS_PRE=false
+
+          curl -sf -X POST \
+            "${{ github.server_url }}/api/v1/repos/${{ github.repository }}/releases" \
+            -H "Authorization: token $FORGEJO_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"tag_name\": \"v$VERSION\",
+              \"name\": \"v$VERSION [$ENV_LABEL]\",
+              \"body\": \"Automated release v$VERSION for $ENV_LABEL environment.\",
+              \"prerelease\": $IS_PRE
+            }"
+          echo "Release v$VERSION created"

@@ -18,6 +18,15 @@ pub mod user;
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
+/// Error response body returned by all error endpoints.
+///
+/// Shape: `{ "error": "Human-readable error message" }`
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ErrorResponse {
+    /// Human-readable error message.
+    pub error: String,
+}
+
 /// Produce a URL-friendly slug from a name.
 ///
 /// Converts to lowercase, replaces non-alphanumeric characters with hyphens,

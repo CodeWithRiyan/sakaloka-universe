@@ -16,6 +16,16 @@ use crate::views::{
     ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
+#[utoipa::path(
+    get,
+    path = "/api/roles",
+    tag = "Roles",
+    params(PaginationParams),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = PaginatedResponse<RoleResponse>)
+    )
+)]
 /// `GET /api/roles` — list roles with pagination and search.
 pub async fn list(
     State(state): State<AppState>,
@@ -52,6 +62,15 @@ pub async fn list(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/roles/permissions",
+    tag = "Roles",
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<Vec<PermissionModuleResponse>>)
+    )
+)]
 /// `GET /api/roles/permissions` — list all available business permissions.
 pub async fn permissions() -> Result<Json<ApiResponse<Vec<PermissionModuleResponse>>>, ApiError> {
     let modules = sakaloka_secure::rbac::permission::business_permission_catalog()
@@ -74,6 +93,17 @@ pub async fn permissions() -> Result<Json<ApiResponse<Vec<PermissionModuleRespon
     Ok(Json(ApiResponse::ok(modules, "Permissions retrieved")))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/roles/{id}",
+    tag = "Roles",
+    params(("id" = String, Path, description = "Role ID")),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<RoleResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `GET /api/roles/:id` — fetch a single role.
 pub async fn show(
     State(state): State<AppState>,
@@ -94,6 +124,17 @@ pub async fn show(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/roles",
+    tag = "Roles",
+    request_body = CreateRoleRequest,
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<RoleResponse>),
+        (status = 400, description = "Validation error")
+    )
+)]
 /// `POST /api/roles` — create a new role.
 pub async fn create(
     State(state): State<AppState>,
@@ -143,6 +184,18 @@ pub async fn create(
     )))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/roles/{id}",
+    tag = "Roles",
+    params(("id" = String, Path, description = "Role ID")),
+    request_body = UpdateRoleRequest,
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<RoleResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `PATCH /api/roles/:id` — update an existing role.
 pub async fn update(
     State(state): State<AppState>,
@@ -196,6 +249,17 @@ pub async fn update(
     )))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/roles/{id}",
+    tag = "Roles",
+    params(("id" = String, Path, description = "Role ID")),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success"),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `DELETE /api/roles/:id` — delete a role.
 pub async fn remove(
     State(state): State<AppState>,

@@ -13,6 +13,18 @@ use crate::views::{
     ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
+#[utoipa::path(
+    get,
+    path = "/api/inventory/pos-stock",
+    tag = "Stock",
+    params(PaginationParams),
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "Stock items retrieved", body = PaginatedResponse<StockResponse>)
+    )
+)]
 /// `GET /api/inventory/pos-stock` — list all stock items with pagination.
 pub async fn list(
     State(state): State<AppState>,
@@ -48,6 +60,18 @@ pub async fn list(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/inventory/pos-stock/low-stock",
+    tag = "Stock",
+    params(PaginationParams),
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "Low stock items retrieved", body = PaginatedResponse<StockResponse>)
+    )
+)]
 /// `GET /api/inventory/pos-stock/low-stock` — list items below their minimum
 /// stock level.
 pub async fn low_stock(
@@ -80,6 +104,19 @@ pub async fn low_stock(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/inventory/pos-stock/{id}",
+    tag = "Stock",
+    params(("id" = String, Path, description = "Stock ID")),
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "Stock item retrieved", body = ApiResponse<StockResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `GET /api/inventory/pos-stock/:id` — fetch a single stock item.
 pub async fn show(
     State(state): State<AppState>,
@@ -100,6 +137,18 @@ pub async fn show(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/inventory/pos-stock/{id}/history",
+    tag = "Stock",
+    params(("id" = String, Path, description = "Stock ID"), PaginationParams),
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "Stock history retrieved", body = PaginatedResponse<StockHistoryResponse>)
+    )
+)]
 /// `GET /api/inventory/pos-stock/:id/history` — fetch stock movement history.
 pub async fn history(
     State(state): State<AppState>,
@@ -153,6 +202,20 @@ pub async fn history(
     }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/inventory/pos-stock/products/{product_id}/adjust",
+    tag = "Stock",
+    params(("product_id" = String, Path, description = "Product ID")),
+    request_body = AdjustStockRequest,
+    security(
+        ("bearer" = [])
+    ),
+    responses(
+        (status = 200, description = "Stock adjusted", body = ApiResponse<StockResponse>),
+        (status = 400, description = "Validation error")
+    )
+)]
 /// `POST /api/inventory/pos-stock/products/:product_id/adjust` — adjust stock
 /// levels.
 pub async fn adjust(

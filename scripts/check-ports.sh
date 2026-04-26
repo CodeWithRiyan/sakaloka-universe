@@ -39,10 +39,6 @@ check_port() {
 }
 
 check_port "53000" "🌍 Earth (API)"          "sakaloka-universe-sakaloka-api"
-check_port "54000" "🔴 Mars (Ockam)"         "sakaloka-universe-ockam"
-check_port "57447" "🪐 Saturn (Zenoh)"       "sakaloka-universe-zenoh"
-check_port "56333" "🔵 Uranus (Qdrant)"      "sakaloka-universe-qdrant"
-check_port "58000" "🪐 Jupiter (SurrealDB)"  "sakaloka-universe-surrealdb"
 
 echo ""
 echo -e "  Planets running: ${CYAN}$SAKALOKA_RUNNING${NC} | Foreign conflicts: ${RED}$CONFLICTS${NC}"

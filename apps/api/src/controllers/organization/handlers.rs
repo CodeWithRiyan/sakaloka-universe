@@ -14,6 +14,16 @@ use crate::views::{
     ApiResponse, ListFilters, PageMeta, PaginatedData, PaginatedResponse, PaginationParams,
 };
 
+#[utoipa::path(
+    get,
+    path = "/api/organizations",
+    tag = "Organizations",
+    params(PaginationParams),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = PaginatedResponse<OrganizationResponse>)
+    )
+)]
 /// `GET /api/organizations` — list organizations the caller has access to.
 pub async fn list(
     State(state): State<AppState>,
@@ -52,6 +62,15 @@ pub async fn list(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/organizations/current",
+    tag = "Organizations",
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<OrganizationResponse>)
+    )
+)]
 /// `GET /api/organizations/current` — fetch the caller's current organization.
 pub async fn current(
     State(state): State<AppState>,
@@ -74,6 +93,16 @@ pub async fn current(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/organizations/select",
+    tag = "Organizations",
+    request_body = SelectOrgRequest,
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<OrganizationResponse>)
+    )
+)]
 /// `POST /api/organizations/select` — switch the caller's active organization.
 pub async fn select(
     State(state): State<AppState>,
@@ -111,6 +140,17 @@ pub async fn select(
     )))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/organizations/{id}",
+    tag = "Organizations",
+    params(("id" = String, Path, description = "Organization ID")),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<OrganizationResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `GET /api/organizations/:id` — fetch a single organization.
 pub async fn show(
     State(state): State<AppState>,
@@ -131,6 +171,17 @@ pub async fn show(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/organizations",
+    tag = "Organizations",
+    request_body = CreateOrgRequest,
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<OrganizationResponse>),
+        (status = 400, description = "Validation error")
+    )
+)]
 /// `POST /api/organizations` — create a new organization.
 pub async fn create(
     State(state): State<AppState>,
@@ -184,6 +235,18 @@ pub async fn create(
     )))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/organizations/{id}",
+    tag = "Organizations",
+    params(("id" = String, Path, description = "Organization ID")),
+    request_body = UpdateOrgRequest,
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<OrganizationResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `PATCH /api/organizations/:id` — update an existing organization.
 pub async fn update(
     State(state): State<AppState>,
@@ -232,6 +295,17 @@ pub async fn update(
     )))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/organizations/{id}",
+    tag = "Organizations",
+    params(("id" = String, Path, description = "Organization ID")),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success"),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `DELETE /api/organizations/:id` — deactivate an organization.
 pub async fn remove(
     State(state): State<AppState>,

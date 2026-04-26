@@ -1,6 +1,6 @@
 [package]
 name = "sakaloka-secure"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2021"
 description = "Sakaloka-Universe — ALL IAM: Argon2, JWT, RBAC, tokens, keys"
 license = "MIT"

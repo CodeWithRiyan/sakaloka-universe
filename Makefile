@@ -25,7 +25,7 @@ ports: ## Check host port conflicts before starting Docker services
 	@bash scripts/check-ports.sh
 
 infra-up: ## Start local infrastructure for app development
-	docker compose up -d surrealdb qdrant zenoh mars-ockam
+	docker compose up -d
 
 infra-down: ## Stop local infrastructure containers
 	docker compose down

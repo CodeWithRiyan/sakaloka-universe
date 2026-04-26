@@ -1,0 +1,37 @@
+# Single compose file for ALL environments (dev / sit / demo / prod).
+# Deploy folder layout (ONE folder on the VPS):
+#
+#   <DEPLOY_PATH>/
+#     ├── docker-compose.yml   (this file)
+#     ├── .env.dev
+#     ├── .env.sit
+#     ├── .env.demo
+#     └── .env.prod
+#
+# CD picks the env-file per branch:
+#   docker compose --env-file .env.$TAG -p pos-damai-rust-$TAG up -d
+
+services:
+  pos-damai-rust:
+    image: ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+    container_name: pos-damai-rust-${IMAGE_TAG}
+    init: true
+    env_file:
+      - .env.${IMAGE_TAG}
+    ports:
+      - '127.0.0.1:${HOST_PORT}:${CONTAINER_PORT:-5150}'
+    networks:
+      - app-net
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ['CMD', 'wget', '--spider', '-q', 'http://localhost:${CONTAINER_PORT:-5150}/_health']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+networks:
+  app-net:
+    name: ${NETWORK:-net-dev}
+    external: true

@@ -1,6 +1,6 @@
 //! Authentication controller — login, register, refresh, and profile.
 
-mod handlers;
+pub(crate) mod handlers;
 pub(crate) mod helpers;
 mod routes;
 

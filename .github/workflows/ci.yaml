@@ -1,0 +1,129 @@
+# =============================================================
+# Sakaloka-Universe — Iron Curtain CI (Forgejo Actions)
+#
+# Runs on every push to dev/main/demo/prod and all PRs.
+# Checks: fmt, clippy, build, test, doc, Venus lint+build.
+# =============================================================
+
+name: CI
+
+on:
+  push:
+    branches: [dev, main, demo, prod]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUST_TOOLCHAIN: "1.93.0"
+
+jobs:
+  # ── Rust: format check ──────────────────────────────────────
+  rustfmt:
+    name: Check Style
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: https://github.com/actions/checkout@v4
+
+      - name: Install Rust
+        uses: https://github.com/dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+  # ── Rust: clippy lint ───────────────────────────────────────
+  clippy:
+    name: Run Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: https://github.com/actions/checkout@v4
+
+      - name: Install Rust
+        uses: https://github.com/dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: clippy
+
+      - name: Setup Rust cache
+        uses: https://github.com/Swatinem/rust-cache@v2
+
+      - name: cargo clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  # ── Rust: build + test + doc ────────────────────────────────
+  test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: https://github.com/actions/checkout@v4
+
+      - name: Start PostgreSQL
+        run: |
+          docker run -d --name postgres -p 5432:5432 \
+            -e POSTGRES_USER=dev_user \
+            -e POSTGRES_PASSWORD=eE4W2heguc8SX7VHu3gs \
+            -e POSTGRES_DB=dev_db \
+            postgres:17-alpine
+          until docker exec postgres pg_isready -U dev_user -d dev_db 2>/dev/null; do
+            sleep 2
+          done
+
+      - name: Install Rust
+        uses: https://github.com/dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Setup Rust cache
+        uses: https://github.com/Swatinem/rust-cache@v2
+
+      - name: cargo build --workspace
+        run: cargo build --workspace
+
+      - name: cargo test --workspace
+        run: cargo test --workspace
+        env:
+          SAKALOKA_JWT_SECRET: "ci-test-secret-at-least-32-chars-long!"
+          DATABASE_URL: "postgres://dev_user:eE4W2heguc8SX7VHu3gs@127.0.0.1:5432/dev_db"
+
+      - name: cargo doc (deny missing_docs)
+        run: cargo doc --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: "-D missing_docs"
+
+  # ── Venus: lint + build ─────────────────────────────────────
+  venus:
+    name: Venus Lint & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: https://github.com/actions/checkout@v4
+
+      - name: Install pnpm
+        uses: https://github.com/pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: https://github.com/actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/venus/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: apps/venus
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        working-directory: apps/venus
+        run: pnpm lint
+
+      - name: Build
+        working-directory: apps/venus
+        run: pnpm build

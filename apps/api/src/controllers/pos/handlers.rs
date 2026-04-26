@@ -15,6 +15,16 @@ use crate::views::{
 
 use super::helpers::{generate_order_number, ResolvedOrderItem};
 
+#[utoipa::path(
+    get,
+    path = "/api/pos/menu",
+    tag = "POS",
+    params(PaginationParams),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = PaginatedResponse<MenuResponse>)
+    )
+)]
 /// `GET /api/pos/menu` — list products available for the POS order screen.
 pub async fn menu(
     State(state): State<AppState>,
@@ -82,6 +92,16 @@ pub async fn menu(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/pos/orders",
+    tag = "POS",
+    params(PaginationParams),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = PaginatedResponse<OrderResponse>)
+    )
+)]
 /// `GET /api/pos/orders` — list all orders with pagination.
 pub async fn list_orders(
     State(state): State<AppState>,
@@ -118,6 +138,16 @@ pub async fn list_orders(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/pos/orders/active",
+    tag = "POS",
+    params(PaginationParams),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = PaginatedResponse<OrderResponse>)
+    )
+)]
 /// `GET /api/pos/orders/active` — list active (non-completed, non-cancelled)
 /// orders.
 pub async fn active_orders(
@@ -165,6 +195,16 @@ pub async fn active_orders(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/pos/orders/history",
+    tag = "POS",
+    params(PaginationParams),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = PaginatedResponse<OrderResponse>)
+    )
+)]
 /// `GET /api/pos/orders/history` — list completed / cancelled orders.
 pub async fn order_history(
     State(state): State<AppState>,
@@ -211,6 +251,17 @@ pub async fn order_history(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/pos/orders/{id}",
+    tag = "POS",
+    params(("id" = String, Path, description = "Order ID")),
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<OrderResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `GET /api/pos/orders/:id` — fetch a single order with its items.
 pub async fn show_order(
     State(state): State<AppState>,
@@ -237,6 +288,17 @@ pub async fn show_order(
     Ok(Json(ApiResponse::ok(response, "Order retrieved")))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/pos/orders",
+    tag = "POS",
+    request_body = CreateOrderRequest,
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<OrderResponse>),
+        (status = 400, description = "Validation error")
+    )
+)]
 /// `POST /api/pos/orders` — create a new order.
 pub async fn create_order(
     State(state): State<AppState>,
@@ -351,6 +413,18 @@ pub async fn create_order(
     Ok(Json(ApiResponse::created(response, "Order created")))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/pos/orders/{id}",
+    tag = "POS",
+    params(("id" = String, Path, description = "Order ID")),
+    request_body = UpdateOrderRequest,
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Success", body = ApiResponse<OrderResponse>),
+        (status = 404, description = "Not found")
+    )
+)]
 /// `PATCH /api/pos/orders/:id` — update an existing order (status, payment,
 /// etc.).
 pub async fn update_order(

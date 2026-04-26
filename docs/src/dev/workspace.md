@@ -37,10 +37,8 @@ sakaloka-universe/
 │   │   │   │   └── stock/         # Inventory & stock movements
 │   │   │   └── views/        # Request/response types (DTOs)
 │   │   └── Dockerfile         # Multi-stage Rust build
-│   ├── ockam/                # Mars — Ockam secure transport
-│   ├── venus/                # Venus — Tauri + SvelteKit desktop
-│   │   └── src-tauri/
-│   └── firmware/             # Mercury — RTIC bare-metal (no_std)
+│   └── venus/                # Venus — Tauri + SvelteKit desktop
+│       └── src-tauri/
 ├── libs/                     # Shared logic (library crates)
 │   ├── core/                 # Domain types and constants
 │   │   └── src/models/       # User, Product, Order, Organization, Role, etc.
@@ -51,15 +49,11 @@ sakaloka-universe/
 │   │       ├── rbac/         # Roles, scopes, RequireScope middleware
 │   │       ├── newtypes.rs   # Validated input wrappers
 │   │       └── tokens/       # Refresh token rotation
-│   ├── data/                 # Database clients
-│   │   ├── src/surreal.rs    # SurrealClient (all DB operations)
-│   │   └── surql/            # SurrealQL migration files
-│   ├── ai/                   # Burn 0.16 inference engine
-│   └── hal/                  # Hardware abstraction (no_std)
+│   └── data/                 # Database clients
+│       └── src/postgres/     # PostgreSQL client via SQLx
 ├── deploy/                   # Server deployment configs
 │   ├── docker-compose.*.yml  # Per-environment compose files
-│   ├── deploy.sh             # Deployment script
-│   └── config/               # Zenoh ACL configs
+│   └── deploy.sh             # Deployment script
 ├── docs/                     # mdBook documentation (this book)
 ├── docker-compose.yml        # Local development services
 ├── Cargo.toml                # Workspace root
@@ -74,10 +68,8 @@ When adding new code, use this decision tree:
 |----------------|-------------|
 | Auth / JWT / RBAC / password / tokens | `libs/secure` (never elsewhere) |
 | Domain types / constants | `libs/core` |
-| Database / messaging / vector queries | `libs/data` |
-| AI / embeddings | `libs/ai` |
+| Database queries | `libs/data` |
 | HTTP routes / controllers | `apps/api` |
-| Hardware / sensor interfaces | `libs/hal` |
 
 ## Models in `libs/core`
 
